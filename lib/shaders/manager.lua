@@ -3,7 +3,7 @@ local ShaderManager = {}
 
 ShaderManager.enabled = true
 ShaderManager.palette_enabled = true
-ShaderManager.palette_mode = 0 -- 0: GameBoy, 1: Cyberpunk, 2: NES, 3: CGA, 4: Mono, 5: Vaporwave
+ShaderManager.palette_mode = 0
 ShaderManager.dither_strength = 0.4
 
 ShaderManager.scanlines_enabled = true
@@ -13,6 +13,8 @@ ShaderManager.scanline_intensity = 0.3
 ShaderManager.crt_enabled = true
 ShaderManager.curvature = 4.0
 ShaderManager.chromatic_aberration = 0.002
+
+ShaderManager.bloom_enabled = true
 ShaderManager.bloom_strength = 0.5
 
 ShaderManager.ntsc_enabled = false
@@ -29,6 +31,9 @@ function ShaderManager.init()
 
     local status_crt, s_crt = pcall(love.graphics.newShader, "lib/shaders/crt.glsl")
     if status_crt then ShaderManager.shader_crt = s_crt end
+
+    local status_bloom, s_bloom = pcall(love.graphics.newShader, "lib/shaders/bloom.glsl")
+    if status_bloom then ShaderManager.shader_bloom = s_bloom end
 
     local status_ntsc, s_ntsc = pcall(love.graphics.newShader, "lib/shaders/ntsc.glsl")
     if status_ntsc then ShaderManager.shader_ntsc = s_ntsc end
@@ -100,13 +105,24 @@ function ShaderManager.end_capture_and_draw()
         swap()
     end
 
-    -- 4. CRT Curvature & Bloom Pass
+    -- 4. Bloom Pass
+    if ShaderManager.bloom_enabled and ShaderManager.shader_bloom then
+        love.graphics.setCanvas(current_dst)
+        love.graphics.clear()
+        ShaderManager.shader_bloom:send("bloom_strength", ShaderManager.bloom_strength)
+        love.graphics.setShader(ShaderManager.shader_bloom)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(current_src, 0, 0)
+        love.graphics.setShader()
+        swap()
+    end
+
+    -- 5. CRT Geometry & Chromatic Aberration Pass
     if ShaderManager.crt_enabled and ShaderManager.shader_crt then
         love.graphics.setCanvas(current_dst)
         love.graphics.clear()
         ShaderManager.shader_crt:send("curvature", ShaderManager.curvature)
         ShaderManager.shader_crt:send("chromatic_aberration", ShaderManager.chromatic_aberration)
-        ShaderManager.shader_crt:send("bloom_strength", ShaderManager.bloom_strength)
         love.graphics.setShader(ShaderManager.shader_crt)
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.draw(current_src, 0, 0)

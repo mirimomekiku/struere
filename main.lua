@@ -6,9 +6,9 @@ local Audio = require("lib.audio")
 local Save = require("lib.save")
 local constants = require("lib.constants")
 local ShaderManager = require("lib.shaders.manager")
+local BlockStyles = require("lib.block_styles")
 
 function love.load()
-    -- Set default window size before loading settings
     love.window.setMode(constants.WINDOW_WIDTH, constants.WINDOW_HEIGHT, {resizable = false})
     love.window.setTitle("TetriX - Refined Retro Edition")
     math.randomseed(os.time())
@@ -17,11 +17,10 @@ function love.load()
     Input.load()
     Effects.init()
     ShaderManager.init()
+    BlockStyles.load()
 
-    -- Apply ALL saved settings immediately on startup (fixes persistence bug)
     Save.apply_all_settings()
 
-    -- Apply saved bindings on top
     local saved_bindings = Save.get("controls")
     if saved_bindings and saved_bindings ~= "" then
         Input.load_bindings(saved_bindings)
@@ -35,6 +34,7 @@ function love.load()
     StateMgr.register("settings", require("lib.screens.settings"))
     StateMgr.register("gameover", require("lib.screens.gameover"))
     StateMgr.register("highscores", require("lib.screens.highscores"))
+    StateMgr.register("unlockables", require("lib.screens.unlockables"))
 
     StateMgr.switch("title")
 end

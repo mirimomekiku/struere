@@ -42,6 +42,7 @@ function Settings.loadValues()
     ShaderManager.palette_mode      = Save.get("settings", "palette_mode") or 0
     ShaderManager.scanlines_enabled = Save.get("settings", "scanlines_enabled") ~= false
     ShaderManager.crt_enabled       = Save.get("settings", "crt_enabled") ~= false
+    ShaderManager.bloom_enabled     = Save.get("settings", "bloom_enabled") ~= false
     ShaderManager.ntsc_enabled      = Save.get("settings", "ntsc_enabled") == true
 
     Settings.res_idx = Save.get("settings", "resolution_idx") or 3
@@ -75,6 +76,7 @@ function Settings.saveValues()
         palette_mode = ShaderManager.palette_mode,
         scanlines_enabled = ShaderManager.scanlines_enabled,
         crt_enabled = ShaderManager.crt_enabled,
+        bloom_enabled = ShaderManager.bloom_enabled,
         ntsc_enabled = ShaderManager.ntsc_enabled,
         resolution_idx = Settings.res_idx,
     })
@@ -189,7 +191,8 @@ function Settings.drawShadersTab(px, by, pw, bh, theme)
         { label = "Palette Limiting & Dither",     val = ShaderManager.palette_enabled and "ENABLED" or "DISABLED" },
         { label = "Active Palette Preset",         val = Settings.palettes[ShaderManager.palette_mode + 1] or "GameBoy" },
         { label = "CRT Horizontal Scanlines",      val = ShaderManager.scanlines_enabled and "ENABLED" or "DISABLED" },
-        { label = "CRT Geometry & Bloom",          val = ShaderManager.crt_enabled and "ENABLED" or "DISABLED" },
+        { label = "CRT Geometry & Distortion",     val = ShaderManager.crt_enabled and "ENABLED" or "DISABLED" },
+        { label = "Bloom & Glow",                  val = ShaderManager.bloom_enabled and "ENABLED" or "DISABLED" },
         { label = "NTSC Composite Artifacts",      val = ShaderManager.ntsc_enabled and "ENABLED" or "DISABLED" },
     }
     local rh = math.floor((bh - 20) / #opts - 6)
@@ -252,7 +255,7 @@ function Settings:keypressed(key)
     end
 
     local max_items = Settings.tab == 1 and 8
-        or Settings.tab == 2 and 6
+        or Settings.tab == 2 and 7
         or Settings.tab == 3 and 4
         or #constants.RESOLUTIONS
 
@@ -281,7 +284,8 @@ function Settings:keypressed(key)
                 ShaderManager.palette_mode = (ShaderManager.palette_mode + dir) % #Settings.palettes
             elseif Settings.selected == 4 then ShaderManager.scanlines_enabled = not ShaderManager.scanlines_enabled
             elseif Settings.selected == 5 then ShaderManager.crt_enabled = not ShaderManager.crt_enabled
-            elseif Settings.selected == 6 then ShaderManager.ntsc_enabled = not ShaderManager.ntsc_enabled
+            elseif Settings.selected == 6 then ShaderManager.bloom_enabled = not ShaderManager.bloom_enabled
+            elseif Settings.selected == 7 then ShaderManager.ntsc_enabled = not ShaderManager.ntsc_enabled
             end
         elseif Settings.tab == 3 then
             if Settings.selected == 1 then
@@ -291,13 +295,12 @@ function Settings:keypressed(key)
             elseif Settings.selected == 3 then
                 Audio.setMusicVolume(math.max(0, math.min(1, (Audio.music_vol or 0.5) + dir * 0.1)))
             elseif Settings.selected == 4 then
-                local theme_names = {"retro", "flat", "glass", "cyberpunk"}
                 local cur = 1
-                for idx, name in ipairs(theme_names) do if name == Themes.current_name then cur = idx end end
+                for idx, name in ipairs(Themes.order) do if name == Themes.current_name then cur = idx end end
                 cur = cur + dir
-                if cur < 1 then cur = #theme_names end
-                if cur > #theme_names then cur = 1 end
-                Themes.set(theme_names[cur])
+                if cur < 1 then cur = #Themes.order end
+                if cur > #Themes.order then cur = 1 end
+                Themes.set(Themes.order[cur])
             end
         elseif Settings.tab == 4 then
             -- Select resolution

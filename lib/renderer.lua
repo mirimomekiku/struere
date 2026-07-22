@@ -1,6 +1,7 @@
 local Themes = require("lib.themes")
 local Piece = require("lib.piece")
 local Board = require("lib.board")
+local BlockStyles = require("lib.block_styles")
 
 local Renderer = {}
 
@@ -117,12 +118,36 @@ function Renderer.draw_neon(x, y, size, color)
 end
 
 function Renderer.draw_block(x, y, size, color, style)
-    if style == "flat" then
+    if style == "sprite" and BlockStyles.sheet then
+        Renderer.draw_sprite_block(x, y, size, color)
+    elseif style == "flat" then
         Renderer.draw_flat(x, y, size, color)
     elseif style == "glass" then
         Renderer.draw_glass(x, y, size, color)
     elseif style == "neon" then
         Renderer.draw_neon(x, y, size, color)
+    else
+        Renderer.draw_filled(x, y, size, color)
+    end
+end
+
+function Renderer.draw_sprite_block(x, y, size, color)
+    local style_key = BlockStyles.get_current()
+    local piece_type = nil
+    for pt, c in pairs(Themes.get().colors) do
+        if c[1] == color[1] and c[2] == color[2] and c[3] == color[3] then
+            piece_type = pt
+            break
+        end
+    end
+    if not piece_type then piece_type = "I" end
+
+    local pi = BlockStyles.get_piece_index(piece_type)
+    local quad = BlockStyles.get_block_quad(style_key, pi)
+
+    if quad then
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(BlockStyles.sheet, quad, x, y, 0, size / 90, size / 50)
     else
         Renderer.draw_filled(x, y, size, color)
     end

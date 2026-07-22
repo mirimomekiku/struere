@@ -19,13 +19,15 @@ local default_data = {
         music_volume = 0.5,
         theme = "retro",
         up_mode = "rotate_cw",
-        shader_enabled = false,  -- shaders off by default for performance
+        shader_enabled = false,
         palette_enabled = true,
         palette_mode = 0,
         scanlines_enabled = true,
         crt_enabled = true,
+        bloom_enabled = true,
         ntsc_enabled = false,
-        resolution_idx = 3,  -- 1280x720
+        resolution_idx = 3,
+        block_style = "classic",
     },
     controls = "",
 }
@@ -103,6 +105,7 @@ function Save.apply_all_settings()
     ShaderManager.palette_mode    = s.palette_mode or 0
     ShaderManager.scanlines_enabled = s.scanlines_enabled ~= false
     ShaderManager.crt_enabled     = s.crt_enabled ~= false
+    ShaderManager.bloom_enabled   = s.bloom_enabled ~= false
     ShaderManager.ntsc_enabled    = s.ntsc_enabled == true
 
     -- Resolution
@@ -116,6 +119,13 @@ function Save.apply_all_settings()
         shack:setDimensions(r.w, r.h)
     end
     constants.recompute_layout()
+
+    -- Block style
+    local BlockStyles = require("lib.block_styles")
+    if s.block_style and s.block_style ~= "classic" then
+        BlockStyles.current_key = s.block_style
+        Themes.current.block_style = "sprite"
+    end
 end
 
 function Save.saveActiveRun(run_state)
