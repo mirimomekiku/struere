@@ -21,6 +21,9 @@ function love.load()
 
     Save.apply_all_settings()
 
+    local GameplayOpts = require("lib.gameplay_opts")
+    GameplayOpts.load()
+
     local saved_bindings = Save.get("controls")
     if saved_bindings and saved_bindings ~= "" then
         Input.load_bindings(saved_bindings)
@@ -35,6 +38,8 @@ function love.load()
     StateMgr.register("gameover", require("lib.screens.gameover"))
     StateMgr.register("highscores", require("lib.screens.highscores"))
     StateMgr.register("unlockables", require("lib.screens.unlockables"))
+    StateMgr.register("mode_select", require("lib.screens.mode_select"))
+    StateMgr.register("battle",      require("lib.screens.battle"))
 
     StateMgr.switch("title")
 end

@@ -1,5 +1,5 @@
-// Palette Limiting & Bayer 4x4 Dithering Shader
-extern int palette_mode; // 0: GameBoy, 1: Cyberpunk, 2: NES, 3: CGA, 4: Mono, 5: Vaporwave
+// Palette Limiting & Bayer 4x4 Dithering Shader — 12 palettes (modes 0–11)
+extern int palette_mode;
 extern float dither_strength;
 
 const mat4 bayer4x4 = mat4(
@@ -9,75 +9,111 @@ const mat4 bayer4x4 = mat4(
     15.0/16.0,  7.0/16.0, 13.0/16.0,  5.0/16.0
 );
 
+vec3 nearest4(vec3 c, vec3 p0, vec3 p1, vec3 p2, vec3 p3) {
+    float d0 = distance(c, p0);
+    float d1 = distance(c, p1);
+    float d2 = distance(c, p2);
+    float d3 = distance(c, p3);
+    float best = min(min(d0,d1),min(d2,d3));
+    if (best == d0) return p0;
+    if (best == d1) return p1;
+    if (best == d2) return p2;
+    return p3;
+}
+
 vec3 get_closest_color(vec3 c, int mode) {
-    if (mode == 0) { // GameBoy Green
-        vec3 p[4];
-        p[0] = vec3(0.06, 0.22, 0.06);
-        p[1] = vec3(0.19, 0.38, 0.19);
-        p[2] = vec3(0.54, 0.67, 0.06);
-        p[3] = vec3(0.61, 0.73, 0.06);
-        float best = 999.0;
-        vec3 res = p[0];
-        for (int i=0; i<4; i++) {
-            float d = distance(c, p[i]);
-            if (d < best) { best = d; res = p[i]; }
-        }
-        return res;
-    } else if (mode == 1) { // Cyberpunk Neon
-        vec3 p[4];
-        p[0] = vec3(0.05, 0.02, 0.15);
-        p[1] = vec3(0.85, 0.05, 0.45);
-        p[2] = vec3(0.00, 0.85, 0.95);
-        p[3] = vec3(0.95, 0.90, 0.20);
-        float best = 999.0;
-        vec3 res = p[0];
-        for (int i=0; i<4; i++) {
-            float d = distance(c, p[i]);
-            if (d < best) { best = d; res = p[i]; }
-        }
-        return res;
-    } else if (mode == 2) { // NES Classic
-        vec3 p[4];
-        p[0] = vec3(0.00, 0.00, 0.00);
-        p[1] = vec3(0.87, 0.23, 0.23);
-        p[2] = vec3(0.95, 0.82, 0.25);
-        p[3] = vec3(1.00, 1.00, 1.00);
-        float best = 999.0;
-        vec3 res = p[0];
-        for (int i=0; i<4; i++) {
-            float d = distance(c, p[i]);
-            if (d < best) { best = d; res = p[i]; }
-        }
-        return res;
-    } else if (mode == 3) { // CGA Mode 1
-        vec3 p[4];
-        p[0] = vec3(0.0, 0.0, 0.0);
-        p[1] = vec3(0.33, 1.0, 1.0);
-        p[2] = vec3(1.0, 0.33, 1.0);
-        p[3] = vec3(1.0, 1.0, 1.0);
-        float best = 999.0;
-        vec3 res = p[0];
-        for (int i=0; i<4; i++) {
-            float d = distance(c, p[i]);
-            if (d < best) { best = d; res = p[i]; }
-        }
-        return res;
-    } else if (mode == 4) { // Monochromatic Ink
+    if (mode == 0) {
+        // GameBoy Green — classic 4-shade pea-soup green
+        return nearest4(c,
+            vec3(0.06, 0.22, 0.06),
+            vec3(0.19, 0.38, 0.19),
+            vec3(0.54, 0.67, 0.06),
+            vec3(0.61, 0.73, 0.06)
+        );
+    } else if (mode == 1) {
+        // Cyberpunk Neon — deep void + hot pink + cyan + acid yellow
+        return nearest4(c,
+            vec3(0.05, 0.02, 0.15),
+            vec3(0.85, 0.05, 0.45),
+            vec3(0.00, 0.85, 0.95),
+            vec3(0.95, 0.90, 0.20)
+        );
+    } else if (mode == 2) {
+        // NES Classic — black, red, gold, white
+        return nearest4(c,
+            vec3(0.00, 0.00, 0.00),
+            vec3(0.87, 0.23, 0.23),
+            vec3(0.95, 0.82, 0.25),
+            vec3(1.00, 1.00, 1.00)
+        );
+    } else if (mode == 3) {
+        // CGA Mode 1 — black, cyan, magenta, white
+        return nearest4(c,
+            vec3(0.00, 0.00, 0.00),
+            vec3(0.33, 1.00, 1.00),
+            vec3(1.00, 0.33, 1.00),
+            vec3(1.00, 1.00, 1.00)
+        );
+    } else if (mode == 4) {
+        // Monochromatic Ink — pure 1-bit black & white
         float lum = dot(c, vec3(0.299, 0.587, 0.114));
         return vec3(step(0.5, lum));
-    } else { // Vaporwave
-        vec3 p[4];
-        p[0] = vec3(0.12, 0.05, 0.24);
-        p[1] = vec3(0.48, 0.18, 0.58);
-        p[2] = vec3(1.00, 0.44, 0.70);
-        p[3] = vec3(0.40, 0.92, 0.88);
-        float best = 999.0;
-        vec3 res = p[0];
-        for (int i=0; i<4; i++) {
-            float d = distance(c, p[i]);
-            if (d < best) { best = d; res = p[i]; }
-        }
-        return res;
+    } else if (mode == 5) {
+        // Vaporwave — deep purple, violet, bubblegum pink, aqua
+        return nearest4(c,
+            vec3(0.12, 0.05, 0.24),
+            vec3(0.48, 0.18, 0.58),
+            vec3(1.00, 0.44, 0.70),
+            vec3(0.40, 0.92, 0.88)
+        );
+    } else if (mode == 6) {
+        // GameBoy Pocket — cool grey 4-shade
+        return nearest4(c,
+            vec3(0.05, 0.06, 0.07),
+            vec3(0.30, 0.33, 0.35),
+            vec3(0.63, 0.66, 0.65),
+            vec3(0.88, 0.90, 0.88)
+        );
+    } else if (mode == 7) {
+        // Amber LCD — warm amber phosphor on near-black
+        return nearest4(c,
+            vec3(0.06, 0.04, 0.00),
+            vec3(0.45, 0.22, 0.00),
+            vec3(0.82, 0.52, 0.00),
+            vec3(1.00, 0.82, 0.15)
+        );
+    } else if (mode == 8) {
+        // Sega Master System — black, blue, red, white (SMS palette subset)
+        return nearest4(c,
+            vec3(0.00, 0.00, 0.00),
+            vec3(0.00, 0.27, 0.80),
+            vec3(0.87, 0.07, 0.07),
+            vec3(0.93, 0.93, 0.93)
+        );
+    } else if (mode == 9) {
+        // ZX Spectrum — black, bright red, bright yellow, white
+        return nearest4(c,
+            vec3(0.00, 0.00, 0.00),
+            vec3(1.00, 0.07, 0.07),
+            vec3(1.00, 1.00, 0.00),
+            vec3(1.00, 1.00, 1.00)
+        );
+    } else if (mode == 10) {
+        // Famicom Disk — pastel lavender, salmon, mint, cream
+        return nearest4(c,
+            vec3(0.24, 0.14, 0.42),
+            vec3(0.84, 0.42, 0.52),
+            vec3(0.40, 0.82, 0.72),
+            vec3(0.96, 0.90, 0.80)
+        );
+    } else {
+        // Arctic Ice (mode 11) — midnight navy, steel, ice blue, snow white
+        return nearest4(c,
+            vec3(0.04, 0.08, 0.20),
+            vec3(0.22, 0.40, 0.62),
+            vec3(0.55, 0.78, 0.95),
+            vec3(0.90, 0.96, 1.00)
+        );
     }
 }
 

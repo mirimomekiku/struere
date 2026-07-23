@@ -9,8 +9,9 @@ Save.data = {}
 local default_data = {
     high_scores = {
         marathon = { score = 0, level = 0, lines = 0, date = "" },
-        blitz = { score = 0, pieces = 0, date = "" },
-        sprint = { score = 0, time = 0, date = "" },
+        blitz    = { score = 0, pieces = 0, date = "" },
+        sprint   = { score = 0, time = 0, date = "" },
+        battle   = { wins = 0 },
     },
     sprint_bests = {},
     settings = {
@@ -28,8 +29,17 @@ local default_data = {
         ntsc_enabled = false,
         resolution_idx = 3,
         block_style = "classic",
+        cpu_difficulty = "medium",
     },
     controls = "",
+    gameplay_opts = {
+        next_queue_size  = 3,
+        hold_enabled     = true,
+        randomizer       = "7bag",
+        srs_enabled      = true,
+        soft_drop_speed  = "normal",
+        ghost_enabled    = true,
+    },
 }
 
 function Save.load()

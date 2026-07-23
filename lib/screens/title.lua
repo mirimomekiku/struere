@@ -284,7 +284,7 @@ function Title:keypressed(key)
         Audio.play("rotate")
         local card = Title.cards[Title.selected]
         if card.action == "play" then
-            state_mgr.switch("gameplay")
+            state_mgr.push("mode_select")
         elseif card.action == "settings" then
             state_mgr.push("settings")
         elseif card.action == "unlockables" then

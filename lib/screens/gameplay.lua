@@ -15,6 +15,7 @@ local Save = require("lib.save")
 local tick = require("lib.vendor.tick")
 local flux = require("lib.vendor.flux")
 local hermes = require("lib.vendor.hermes")
+local GameplayOpts = require("lib.gameplay_opts")
 
 local Gameplay = {}
 
@@ -60,6 +61,10 @@ function Gameplay.spawn_piece(piece_type)
 end
 
 function Gameplay.lock_piece()
+    -- Save undo snapshot before locking
+    if Gameplay.mode and Gameplay.mode.beforeLock then
+        Gameplay.mode:beforeLock(Gameplay)
+    end
     Board.place_piece(Gameplay.board, Gameplay.current_piece)
 
     local clear_rows = {}
@@ -147,6 +152,7 @@ function Gameplay.hard_drop()
 end
 
 function Gameplay.hold_piece()
+    if not GameplayOpts.hold_enabled then return end
     if not Queue.can_hold() then return end
     local held = Queue.hold_piece(Gameplay.current_piece.type)
     Audio.play("hold")
@@ -189,6 +195,9 @@ function Gameplay:enter(previous, mode_override)
     -- Recompute layout based on current window size
     constants.recompute_layout()
 
+    -- Refresh gameplay options from save
+    GameplayOpts.load()
+
     Gameplay.board = Board.new()
     Gameplay.randomizer = Randomizer.new()
     Gameplay.score = 0
@@ -202,7 +211,7 @@ function Gameplay:enter(previous, mode_override)
     Gameplay.lock_moves = 0
     Gameplay.is_grounded = false
     Effects.clear()
-    Queue.init(Gameplay.randomizer, constants.NEXT_QUEUE_SIZE)
+    Queue.init(Gameplay.randomizer, math.max(1, GameplayOpts.next_queue_size))
 
     Gameplay.mode = mode_override or Menu.createMode()
     if Gameplay.mode then
@@ -242,7 +251,7 @@ function Gameplay:update(dt)
     local drop_interval = Gameplay.mode and Gameplay.mode:getDropInterval(Gameplay) or Scoring.drop_interval(Gameplay.level)
 
     if Gameplay.soft_drop_active then
-        if Gameplay.drop_timer >= constants.SOFT_DROP_INTERVAL then
+        if Gameplay.drop_timer >= GameplayOpts.get_soft_drop_interval() then
             Gameplay.drop_timer = 0
             Gameplay.soft_drop()
         end
@@ -313,8 +322,10 @@ function Gameplay:draw()
     Renderer.draw_board(Gameplay.board, bx, by, cs, theme)
 
     if not Gameplay.game_over then
-        local ghost_row = Board.get_ghost_row(Gameplay.board, Gameplay.current_piece)
-        Renderer.draw_ghost(Gameplay.current_piece, ghost_row, bx, by, cs, theme)
+        if GameplayOpts.ghost_enabled then
+            local ghost_row = Board.get_ghost_row(Gameplay.board, Gameplay.current_piece)
+            Renderer.draw_ghost(Gameplay.current_piece, ghost_row, bx, by, cs, theme)
+        end
         Renderer.draw_piece(Gameplay.current_piece, bx, by, cs, theme)
     end
 
@@ -344,7 +355,8 @@ function Gameplay:draw()
     love.graphics.printf("NEXT", right_x, by, panel_w, "center")
 
     local mini = math.floor(cs * 0.65)
-    for i = 1, math.min(5, #Queue.next_queue) do
+    local show_next = math.max(1, math.min(GameplayOpts.next_queue_size, #Queue.next_queue))
+    for i = 1, show_next do
         local y_off = by + 18 + (i - 1) * (mini * 3 + 8)
         love.graphics.setColor(0, 0, 0, 0.4)
         love.graphics.rectangle("fill", right_x, y_off, panel_w, mini * 3, 6, 6)
@@ -436,6 +448,13 @@ function Gameplay:keypressed(key)
         end
     elseif action == "HOLD" then
         Gameplay.hold_piece()
+    elseif key == "u" then
+        -- Undo (Zen mode or any mode that supports it)
+        if Gameplay.mode and Gameplay.mode.tryUndo then
+            if Gameplay.mode:tryUndo(Gameplay) then
+                Audio.play("hold")
+            end
+        end
     elseif action == "THEME" then
         Gameplay.theme_name = Themes.cycle()
         Save.set("settings", "theme", Themes.current_name)

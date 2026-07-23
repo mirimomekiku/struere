@@ -5,12 +5,13 @@ local Save = require("lib.save")
 local ShaderManager = require("lib.shaders.manager")
 local constants = require("lib.constants")
 local shack = require("lib.vendor.shack")
+local GameplayOpts = require("lib.gameplay_opts")
 
 local Settings = {}
 
 Settings.tab = 1
 Settings.selected = 1
-Settings.tabs = {"CONTROLS", "RETRO SHADERS", "AUDIO & THEMES", "DISPLAY"}
+Settings.tabs = {"CONTROLS", "RETRO SHADERS", "AUDIO & THEMES", "DISPLAY", "GAMEPLAY"}
 
 Settings.up_modes = {"rotate_cw", "hard_drop", "rotate_ccw", "off"}
 Settings.up_mode_labels = {
@@ -21,9 +22,30 @@ Settings.up_mode_labels = {
 }
 Settings.up_idx = 1
 
-Settings.palettes = {"GameBoy Green", "Cyberpunk Neon", "NES Classic", "CGA Mode 1", "Monochromatic", "Vaporwave"}
+Settings.palettes = {
+    "GameBoy Green", "Cyberpunk Neon", "NES Classic", "CGA Mode 1",
+    "Monochromatic",  "Vaporwave",
+    "GameBoy Pocket", "Amber LCD",     "Sega Master System",
+    "ZX Spectrum",    "Famicom Disk",  "Arctic Ice",
+}
 
 Settings.res_idx = 3  -- working copy for display
+
+Settings.cpu_difficulties  = {"easy", "medium", "hard", "boss"}
+Settings.cpu_diff_labels   = {easy = "Easy", medium = "Medium", hard = "Hard", boss = "Boss \226\152\133"}
+Settings.cpu_diff_idx      = 2  -- default medium
+
+-- ── Gameplay Options working state ───────────────────────────────────────────
+Settings.gp_next_queue      = 3
+Settings.gp_hold            = true
+Settings.gp_rand_keys       = {"7bag","classic","gameboy","8bag","tgm1","tgm2","tgm3"}
+Settings.gp_rand_names      = {"7-Bag","Classic","Game Boy","8-Bag","TGM1","TGM2","TGM3"}
+Settings.gp_rand_idx        = 1
+Settings.gp_srs             = true
+Settings.gp_softdrop_keys   = {"slow","normal","fast","instant"}
+Settings.gp_softdrop_labels = {"Slow","Normal","Fast","Instant"}
+Settings.gp_softdrop_idx    = 2  -- normal
+Settings.gp_ghost           = true
 
 function Settings:enter(previous)
     Settings.tab = 1
@@ -45,7 +67,30 @@ function Settings.loadValues()
     ShaderManager.bloom_enabled     = Save.get("settings", "bloom_enabled") ~= false
     ShaderManager.ntsc_enabled      = Save.get("settings", "ntsc_enabled") == true
 
-    Settings.res_idx = Save.get("settings", "resolution_idx") or 3
+    Settings.res_idx     = Save.get("settings", "resolution_idx") or 3
+
+    -- CPU difficulty
+    local saved_diff = Save.get("settings", "cpu_difficulty") or "medium"
+    for i, d in ipairs(Settings.cpu_difficulties) do
+        if d == saved_diff then Settings.cpu_diff_idx = i; break end
+    end
+
+    -- Gameplay options
+    local gp = Save.get("gameplay_opts") or {}
+    Settings.gp_next_queue = gp.next_queue_size or 3
+    Settings.gp_hold       = gp.hold_enabled ~= false
+    Settings.gp_srs        = gp.srs_enabled  ~= false
+    Settings.gp_ghost      = gp.ghost_enabled ~= false
+    local saved_rand = gp.randomizer or "7bag"
+    Settings.gp_rand_idx = 1
+    for i, k in ipairs(Settings.gp_rand_keys) do
+        if k == saved_rand then Settings.gp_rand_idx = i; break end
+    end
+    local saved_sd = gp.soft_drop_speed or "normal"
+    Settings.gp_softdrop_idx = 2
+    for i, k in ipairs(Settings.gp_softdrop_keys) do
+        if k == saved_sd then Settings.gp_softdrop_idx = i; break end
+    end
 end
 
 function Settings.saveValues()
@@ -79,7 +124,17 @@ function Settings.saveValues()
         bloom_enabled = ShaderManager.bloom_enabled,
         ntsc_enabled = ShaderManager.ntsc_enabled,
         resolution_idx = Settings.res_idx,
+        cpu_difficulty = Settings.cpu_difficulties[Settings.cpu_diff_idx] or "medium",
     })
+
+    -- Save gameplay options
+    GameplayOpts.next_queue_size  = Settings.gp_next_queue
+    GameplayOpts.hold_enabled     = Settings.gp_hold
+    GameplayOpts.randomizer       = Settings.gp_rand_keys[Settings.gp_rand_idx]
+    GameplayOpts.srs_enabled      = Settings.gp_srs
+    GameplayOpts.soft_drop_speed  = Settings.gp_softdrop_keys[Settings.gp_softdrop_idx]
+    GameplayOpts.ghost_enabled    = Settings.gp_ghost
+    GameplayOpts.save()
 end
 
 function Settings:update(dt)
@@ -142,6 +197,8 @@ function Settings:draw()
         Settings.drawAudioTab(px, body_y, pw, body_h, theme)
     elseif Settings.tab == 4 then
         Settings.drawDisplayTab(px, body_y, pw, body_h, theme)
+    elseif Settings.tab == 5 then
+        Settings.drawGameplayTab(px, body_y, pw, body_h, theme)
     end
 
     -- Footer instructions
@@ -178,6 +235,7 @@ function Settings.drawControlsTab(px, by, pw, bh, theme)
         { label = "Rotate CW Key",      val = Input.get_key_for_action("ROTATE_CW") },
         { label = "Rotate CCW Key",     val = Input.get_key_for_action("ROTATE_CCW") },
         { label = "Hold Piece Key",     val = Input.get_key_for_action("HOLD") },
+        { label = "VS CPU Difficulty",  val = Settings.cpu_diff_labels[Settings.cpu_difficulties[Settings.cpu_diff_idx]] or "Medium" },
     }
     local rh = math.floor((bh - 20) / #options - 6)
     for i, opt in ipairs(options) do
@@ -239,6 +297,61 @@ function Settings.drawDisplayTab(px, by, pw, bh, theme)
     end
 end
 
+function Settings.drawGameplayTab(px, by, pw, bh, theme)
+    local rand_desc = {
+        ["7-Bag"]    = "Standard modern Tetris \226\128\148 no droughts",
+        ["Classic"]  = "Pure random \226\128\148 can repeat, can drought",
+        ["Game Boy"] = "No immediate repeats (1-slot history)",
+        ["8-Bag"]    = "7-Bag + 1 bonus random piece per cycle",
+        ["TGM1"]     = "4-slot history, 4 rerolls \226\128\148 balanced",
+        ["TGM2"]     = "TGM1 + S/Z drought avoidance",
+        ["TGM3"]     = "35-roll, 6-slot history \226\128\148 most predictable",
+    }
+    local sdr_desc = {
+        ["Slow"]    = "0.15s per row",
+        ["Normal"]  = "0.05s per row  (default)",
+        ["Fast"]    = "0.018s per row",
+        ["Instant"] = "Effectively instant drop",
+    }
+    local opts = {
+        { label = "Next Queue Size",        val = tostring(Settings.gp_next_queue) .. " piece" .. (Settings.gp_next_queue > 1 and "s" or "") },
+        { label = "Hold Piece (Shift)",     val = Settings.gp_hold and "ENABLED" or "DISABLED" },
+        { label = "Randomizer",             val = Settings.gp_rand_names[Settings.gp_rand_idx] or "7-Bag" },
+        { label = "Super Rotation System",  val = Settings.gp_srs and "ENABLED" or "DISABLED" },
+        { label = "Soft Drop Speed",        val = Settings.gp_softdrop_labels[Settings.gp_softdrop_idx] or "Normal" },
+        { label = "Ghost Piece",            val = Settings.gp_ghost and "ENABLED" or "DISABLED" },
+    }
+
+    local rh = math.floor((bh - 50) / #opts - 6)
+    for i, opt in ipairs(opts) do
+        draw_row(i, Settings.selected, opt.label, opt.val, px, by + 10, pw, rh, theme)
+    end
+
+    -- Contextual description hint below the selected row
+    local desc_y = by + 10 + #opts * (rh + 6) + 8
+    local desc
+    if Settings.selected == 3 then
+        desc = rand_desc[opts[3].val]
+    elseif Settings.selected == 5 then
+        desc = sdr_desc[opts[5].val]
+    elseif Settings.selected == 1 then
+        desc = "Number of upcoming pieces shown in the NEXT panel (1\226\128\1483)"
+    elseif Settings.selected == 2 then
+        desc = "When DISABLED, the Shift/C hold key has no effect in-game"
+    elseif Settings.selected == 4 then
+        desc = Settings.gp_srs and "Wall-kicks ON \226\128\148 pieces can rotate in tight spaces"
+                                 or "Wall-kicks OFF \226\128\148 classic rotation behaviour"
+    elseif Settings.selected == 6 then
+        desc = Settings.gp_ghost and "Shadow shows where the active piece will land"
+                                   or "No ghost shadow \226\128\148 rely on pure judgement!"
+    end
+    if desc then
+        love.graphics.setFont(love.graphics.newFont(11))
+        love.graphics.setColor(0.55, 0.70, 0.85, 0.85)
+        love.graphics.printf("\226\152\139 " .. desc, px + 20, desc_y, pw - 40, "left")
+    end
+end
+
 function Settings:keypressed(key)
     local state_mgr = require("lib.state_mgr")
 
@@ -254,9 +367,10 @@ function Settings:keypressed(key)
         return
     end
 
-    local max_items = Settings.tab == 1 and 8
+    local max_items = Settings.tab == 1 and 9
         or Settings.tab == 2 and 7
         or Settings.tab == 3 and 4
+        or Settings.tab == 5 and 6
         or #constants.RESOLUTIONS
 
     if key == "up" then
@@ -276,6 +390,10 @@ function Settings:keypressed(key)
                 Settings.up_idx = Settings.up_idx + dir
                 if Settings.up_idx < 1 then Settings.up_idx = #Settings.up_modes end
                 if Settings.up_idx > #Settings.up_modes then Settings.up_idx = 1 end
+            elseif Settings.selected == 9 then
+                Settings.cpu_diff_idx = Settings.cpu_diff_idx + dir
+                if Settings.cpu_diff_idx < 1 then Settings.cpu_diff_idx = #Settings.cpu_difficulties end
+                if Settings.cpu_diff_idx > #Settings.cpu_difficulties then Settings.cpu_diff_idx = 1 end
             end
         elseif Settings.tab == 2 then
             if Settings.selected == 1 then ShaderManager.enabled = not ShaderManager.enabled
@@ -305,6 +423,28 @@ function Settings:keypressed(key)
         elseif Settings.tab == 4 then
             -- Select resolution
             Settings.res_idx = Settings.selected
+        elseif Settings.tab == 5 then
+            -- Gameplay options
+            if Settings.selected == 1 then
+                -- Next queue size 1/2/3
+                Settings.gp_next_queue = Settings.gp_next_queue + dir
+                if Settings.gp_next_queue < 1 then Settings.gp_next_queue = 3 end
+                if Settings.gp_next_queue > 3 then Settings.gp_next_queue = 1 end
+            elseif Settings.selected == 2 then
+                Settings.gp_hold = not Settings.gp_hold
+            elseif Settings.selected == 3 then
+                Settings.gp_rand_idx = Settings.gp_rand_idx + dir
+                if Settings.gp_rand_idx < 1 then Settings.gp_rand_idx = #Settings.gp_rand_keys end
+                if Settings.gp_rand_idx > #Settings.gp_rand_keys then Settings.gp_rand_idx = 1 end
+            elseif Settings.selected == 4 then
+                Settings.gp_srs = not Settings.gp_srs
+            elseif Settings.selected == 5 then
+                Settings.gp_softdrop_idx = Settings.gp_softdrop_idx + dir
+                if Settings.gp_softdrop_idx < 1 then Settings.gp_softdrop_idx = #Settings.gp_softdrop_keys end
+                if Settings.gp_softdrop_idx > #Settings.gp_softdrop_keys then Settings.gp_softdrop_idx = 1 end
+            elseif Settings.selected == 6 then
+                Settings.gp_ghost = not Settings.gp_ghost
+            end
         end
     elseif key == "escape" then
         Settings.saveValues()

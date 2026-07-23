@@ -112,6 +112,19 @@ function Piece.try_rotate(board, piece, direction)
     local Collision = require("lib.collision")
     local from = piece.rotation
     local to = (from + direction) % 4
+
+    -- ── SRS disabled: only try basic zero-offset rotation ────────────────────
+    local ok_gp, GameplayOpts = pcall(require, "lib.gameplay_opts")
+    if ok_gp and GameplayOpts.srs_enabled == false then
+        if not Collision.any_overlap(board, piece.type, to, piece.row, piece.col) then
+            piece.rotation = to
+            flux.to(piece, 0.08, { anim_col = piece.col, anim_row = piece.row }):ease("quadout")
+            return true
+        end
+        return false
+    end
+
+    -- ── SRS enabled: full wall-kick table ────────────────────────────────────
     local kicks = Piece.get_kicks(piece.type, from, to)
 
     -- Try standard SRS kicks first

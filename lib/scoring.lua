@@ -2,8 +2,21 @@ local constants = require("lib.constants")
 
 local Scoring = {}
 
+-- Base line-clear scores (multiplied by level)
+Scoring.LINE_SCORES = {
+    [1] = 100,
+    [2] = 300,
+    [3] = 500,
+    [4] = 800,
+}
+
+-- Bonus constants
+Scoring.BACK_TO_BACK_BONUS  = 400   -- added on top when consecutive Tetris (4-line) clears
+Scoring.ALL_CLEAR_BONUS     = 1000  -- added when board is completely empty after a clear
+Scoring.BACK_TO_BACK_MULTIPLIER = 1.5
+
 function Scoring.calculate(lines_cleared, level)
-    local base = constants.SCORE_TABLE[lines_cleared] or 0
+    local base = Scoring.LINE_SCORES[lines_cleared] or 0
     return base * level
 end
 

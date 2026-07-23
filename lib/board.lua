@@ -89,4 +89,26 @@ function Board.get_ghost_row(board, piece)
     return row
 end
 
+-- All-clear detection: returns true if visible board (rows 21..40) is completely empty
+function Board.is_empty(board)
+    for r = constants.BUFFER_ROWS + 1, constants.TOTAL_ROWS do
+        for c = 1, constants.GRID_COLS do
+            if Board.get_cell(board, r, c) then return false end
+        end
+    end
+    return true
+end
+
+-- Deep copy board for undo snapshots
+function Board.deep_copy(board)
+    local batteries = require("lib.vendor.batteries")
+    local new_matrix = batteries.matrix.new(constants.GRID_COLS, constants.TOTAL_ROWS, nil)
+    for c = 1, constants.GRID_COLS do
+        for r = 1, constants.TOTAL_ROWS do
+            new_matrix:set(c, r, board.matrix:get(c, r))
+        end
+    end
+    return { matrix = new_matrix }
+end
+
 return Board

@@ -1,4 +1,5 @@
 local BaseMode = require("lib.modes.base")
+local Scoring  = require("lib.scoring")
 
 local Blitz = {}
 Blitz.__index = Blitz
@@ -6,27 +7,42 @@ setmetatable(Blitz, { __index = BaseMode })
 
 function Blitz.new(config)
     config = config or {}
-    config.name = config.name or "Blitz"
-    config.time_limit = config.time_limit or 120
+    config.name          = "Blitz"
+    config.time_limit    = config.time_limit or 120
     config.fixed_gravity = true
-    config.start_level = config.start_level or 5
+    config.start_level   = config.start_level or 5
     local self = BaseMode.new(config)
-    self.combo_multiplier = 1
+    self.combo_multiplier = 1.0
     return self
 end
 
 function Blitz:onLineClear(state, lines_cleared, rows)
     if lines_cleared > 0 then
         self.combo = self.combo + 1
-        if self.combo > self.max_combo then
-            self.max_combo = self.combo
-        end
+        if self.combo > self.max_combo then self.max_combo = self.combo end
+
         self.combo_multiplier = 1 + (self.combo - 1) * 0.5
         self.lines_cleared = self.lines_cleared + lines_cleared
         state.lines = state.lines + lines_cleared
+
+        -- Back-to-back Tetris bonus
+        local is_tetris = (lines_cleared == 4)
+        if is_tetris and self.back_to_back then
+            local btb_bonus = math.floor(Scoring.BACK_TO_BACK_BONUS * self.combo_multiplier)
+            state.score = state.score + btb_bonus
+            self.back_to_back_count = (self.back_to_back_count or 0) + 1
+        end
+        self.back_to_back = is_tetris
+
+        -- All-clear bonus
+        local Board = require("lib.board")
+        if Board.is_empty(state.board) then
+            self.all_clears = (self.all_clears or 0) + 1
+            state.score = state.score + math.floor(Scoring.ALL_CLEAR_BONUS * self.combo_multiplier)
+        end
     else
         self.combo = 0
-        self.combo_multiplier = 1
+        self.combo_multiplier = 1.0
     end
 end
 
@@ -35,33 +51,86 @@ function Blitz:getScoringMultiplier()
 end
 
 function Blitz:drawHUD(state, x, y)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("SCORE", x, y)
-    love.graphics.print(tostring(state.score), x, y + 20)
+    local W = love.graphics.getWidth()
+    local w = W - x - 16
 
+    -- Score (big)
+    love.graphics.setColor(0, 0, 0, 0.5)
+    love.graphics.rectangle("fill", x, y, w, 52, 8, 8)
+    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setColor(0.80, 0.55, 0.20, 0.85)
+    love.graphics.printf("SCORE", x, y + 4, w, "center")
+    love.graphics.setFont(love.graphics.newFont(20))
+    love.graphics.setColor(1, 0.90, 0.25)
+    love.graphics.printf(tostring(state.score), x, y + 18, w, "center")
+
+    local row_y = y + 60
+
+    -- Countdown timer
     local time_left = math.max(0, self.time_limit - self.timer)
     local minutes = math.floor(time_left / 60)
     local seconds = time_left % 60
-    love.graphics.print("TIME LEFT", x, y + 60)
+
+    love.graphics.setColor(0, 0, 0, 0.5)
+    love.graphics.rectangle("fill", x, row_y, w, 52, 6, 6)
+    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setColor(0.80, 0.55, 0.20, 0.85)
+    love.graphics.printf("TIME LEFT", x, row_y + 4, w, "center")
+
+    -- Color urgency: green → yellow → red
+    local urgency = 1 - (time_left / self.time_limit)
+    local tr = math.min(1, urgency * 2)
+    local tg = math.max(0, 1 - (urgency - 0.5) * 2)
+
+    love.graphics.setFont(love.graphics.newFont(22))
+    love.graphics.setColor(tr, tg, 0.1)
     if time_left < 10 then
-        love.graphics.setColor(1, 0, 0)
-    else
-        love.graphics.setColor(1, 1, 0)
+        -- Pulse when urgent
+        local pulse = math.sin(love.timer.getTime() * 8) * 0.3 + 0.7
+        love.graphics.setColor(1, 0, 0, pulse)
     end
-    love.graphics.print(string.format("%d:%05.2f", minutes, seconds), x, y + 80)
+    love.graphics.printf(string.format("%02d:%05.2f", minutes, seconds), x, row_y + 16, w, "center")
+    row_y = row_y + 60
 
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("COMBO", x, y + 130)
+    -- Combo
+    love.graphics.setColor(0, 0, 0, 0.45)
+    love.graphics.rectangle("fill", x, row_y, w, 38, 6, 6)
+    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setColor(0.55, 0.65, 0.75)
+    love.graphics.printf("COMBO MULT", x, row_y + 4, w, "center")
+    love.graphics.setFont(love.graphics.newFont(16))
     if self.combo > 1 then
-        love.graphics.setColor(1, 0.8, 0)
-        love.graphics.print("x" .. string.format("%.1f", self.combo_multiplier), x, y + 150)
+        love.graphics.setColor(1, 0.75, 0)
+        love.graphics.printf(string.format("×%.1f  COMBO ×%d", self.combo_multiplier, self.combo),
+            x, row_y + 18, w, "center")
     else
-        love.graphics.setColor(0.5, 0.5, 0.5)
-        love.graphics.print("---", x, y + 150)
+        love.graphics.setColor(0.45, 0.50, 0.60)
+        love.graphics.printf("—", x, row_y + 18, w, "center")
+    end
+    row_y = row_y + 46
+
+    -- Lines cleared
+    self:drawStatRow("LINES", self.lines_cleared, x, row_y, w)
+    row_y = row_y + 46
+
+    -- Back-to-back indicator
+    if self.back_to_back then
+        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.setColor(1, 0.55, 0.05, 0.9)
+        love.graphics.printf("🔥 BACK-TO-BACK TETRIS", x, row_y, w, "center")
     end
 
-    love.graphics.setColor(0.5, 0.5, 0.5)
-    love.graphics.print("Mode: Blitz", x, y + 210)
+    -- All clears
+    if (self.all_clears or 0) > 0 then
+        love.graphics.setFont(love.graphics.newFont(9))
+        love.graphics.setColor(0.25, 1, 0.65, 0.85)
+        love.graphics.printf(string.format("ALL CLEARS: %d", self.all_clears), x, row_y + 16, w, "center")
+    end
+
+    -- Mode tag
+    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setColor(0.70, 0.40, 0.08, 0.8)
+    love.graphics.printf("BLITZ  2 MIN", x, row_y + 32, w, "center")
 end
 
 return Blitz
