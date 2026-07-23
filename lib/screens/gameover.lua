@@ -15,7 +15,7 @@ function GameOver.update(dt)
 end
 
 function GameOver.draw()
-    local theme = Themes.get()
+    local theme = Themes.get_ui_theme()
     love.graphics.setColor(0, 0, 0, 0.8)
     love.graphics.rectangle("fill", 100, 150, 400, 300)
 

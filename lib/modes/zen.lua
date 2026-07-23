@@ -1,4 +1,5 @@
 local BaseMode = require("lib.modes.base")
+local Fonts    = require("lib.fonts")
 local Board    = require("lib.board")
 local Queue    = require("lib.queue")
 
@@ -50,10 +51,10 @@ function Zen:drawHUD(state, x, y)
 
     love.graphics.setColor(0, 0, 0, 0.45)
     love.graphics.rectangle("fill", x, y + 92, w, 38, 6, 6)
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.25, 0.75, 0.65, 0.85)
     love.graphics.printf("TIME", x, y + 96, w, "center")
-    love.graphics.setFont(love.graphics.newFont(14))
+    love.graphics.setFont(Fonts.get(14))
     love.graphics.setColor(0.15, 0.95, 0.80)
     love.graphics.printf(self:getTimeFormatted(), x, y + 110, w, "center")
 
@@ -61,7 +62,7 @@ function Zen:drawHUD(state, x, y)
     local undo_y = y + 140
     love.graphics.setColor(0, 0, 0, 0.4)
     love.graphics.rectangle("fill", x, undo_y, w, 30, 6, 6)
-    love.graphics.setFont(love.graphics.newFont(10))
+    love.graphics.setFont(Fonts.get(10))
     if self.undo_available then
         local pulse = math.sin(love.timer.getTime() * 3) * 0.2 + 0.8
         love.graphics.setColor(0.15, 0.85, 0.60, pulse)
@@ -72,12 +73,12 @@ function Zen:drawHUD(state, x, y)
     end
 
     -- Gravity level
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.12, 0.65, 0.58, 0.75)
     love.graphics.printf(string.format("Gravity Lv.%d  ← Customise in Settings", state.level), x, undo_y + 38, w, "center")
 
     -- Mode tag
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.08, 0.55, 0.50, 0.8)
     love.graphics.printf("ZEN  ∞ INFINITE", x, undo_y + 52, w, "center")
 end

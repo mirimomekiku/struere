@@ -5,6 +5,7 @@ local Save = require("lib.save")
 local constants = require("lib.constants")
 local Renderer = require("lib.renderer")
 local Piece = require("lib.piece")
+local Fonts = require("lib.fonts")
 
 local Title = {}
 
@@ -142,15 +143,15 @@ local function draw_card(card, x, y, w, h, is_selected, alpha, time)
     draw_rounded_rect(x, y + h * 0.45, w, h * 0.12, 0)
 
     love.graphics.setColor(1, 1, 1, alpha * 0.95)
-    love.graphics.setFont(love.graphics.newFont(20))
+    love.graphics.setFont(Fonts.get(20))
     love.graphics.printf(card.label, x, y + 10, w, "center")
 
     love.graphics.setColor(1, 1, 1, alpha * 0.7)
-    love.graphics.setFont(love.graphics.newFont(11))
+    love.graphics.setFont(Fonts.get(11))
     love.graphics.printf(card.sublabel, x, y + 36, w, "center")
 
     love.graphics.setColor(0, 0, 0, alpha * 0.85)
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     local desc_lines = {}
     for line in card.desc:gmatch("[^\n]+") do
         table.insert(desc_lines, line)
@@ -162,7 +163,7 @@ local function draw_card(card, x, y, w, h, is_selected, alpha, time)
     if is_selected then
         local sel_pulse = math.sin(time * 6) * 0.3 + 0.7
         love.graphics.setColor(1, 1, 1, sel_pulse * alpha)
-        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.setFont(Fonts.get(10))
         love.graphics.printf("▶ PRESS ENTER", x, y + h - 18, w, "center")
     end
 
@@ -170,7 +171,7 @@ local function draw_card(card, x, y, w, h, is_selected, alpha, time)
 end
 
 function Title:draw()
-    local theme = Themes.get()
+    local theme = Themes.get_ui_theme()
     local W = love.graphics.getWidth()
     local H = love.graphics.getHeight()
 
@@ -207,11 +208,11 @@ function Title:draw()
         love.graphics.rectangle("fill", dx, 0, 4, header_h)
     end
 
-    love.graphics.setFont(love.graphics.newFont(38))
+    love.graphics.setFont(Fonts.get(38))
     love.graphics.setColor(1, 1, 1, Title.title_alpha)
     love.graphics.printf("MAIN MENU", 0, 16, W, "center")
 
-    love.graphics.setFont(love.graphics.newFont(13))
+    love.graphics.setFont(Fonts.get(13))
     love.graphics.setColor(1, 1, 1, Title.title_alpha * 0.7)
     love.graphics.printf("TETRIX  -  REFINED RETRO ARCADE", 0, 52, W, "center")
 
@@ -249,7 +250,7 @@ function Title:draw()
         end
     end
 
-    love.graphics.setFont(love.graphics.newFont(11))
+    love.graphics.setFont(Fonts.get(11))
     love.graphics.setColor(0.5, 0.5, 0.65, Title.menu_alpha * 0.8)
     love.graphics.printf("← → ↑ ↓ Navigate    ENTER Select    ESC Quit", 0, H - 28, W, "center")
 end

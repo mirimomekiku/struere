@@ -11,7 +11,7 @@ local Settings = {}
 
 Settings.tab = 1
 Settings.selected = 1
-Settings.tabs = {"CONTROLS", "RETRO SHADERS", "AUDIO & THEMES", "DISPLAY", "GAMEPLAY"}
+Settings.tabs = {"CONTROLS", "RETRO SHADERS", "AUDIO", "DISPLAY", "GAMEPLAY"}
 
 Settings.up_modes = {"rotate_cw", "hard_drop", "rotate_ccw", "off"}
 Settings.up_mode_labels = {
@@ -115,7 +115,6 @@ function Settings.saveValues()
         master_volume = Audio.master_vol or 0.8,
         sfx_volume = Audio.sfx_vol or 1.0,
         music_volume = Audio.music_vol or 0.5,
-        theme = Themes.current_name or "retro",
         shader_enabled = ShaderManager.enabled,
         palette_enabled = ShaderManager.palette_enabled,
         palette_mode = ShaderManager.palette_mode,
@@ -141,7 +140,7 @@ function Settings:update(dt)
 end
 
 function Settings:draw()
-    local theme = Themes.get()
+    local theme = Themes.get_ui_theme()
     local W = love.graphics.getWidth()
     local H = love.graphics.getHeight()
 
@@ -264,9 +263,8 @@ function Settings.drawAudioTab(px, by, pw, bh, theme)
         { label = "Master Volume", val = string.format("%.0f%%", (Audio.master_vol or 0.8) * 100) },
         { label = "SFX Volume",    val = string.format("%.0f%%", (Audio.sfx_vol or 1.0) * 100) },
         { label = "Music Volume",  val = string.format("%.0f%%", (Audio.music_vol or 0.5) * 100) },
-        { label = "Visual Theme",  val = Themes.current_name or "retro" },
     }
-    local rh = math.floor((bh - 20) / 8 - 6)
+    local rh = math.floor((bh - 20) / 6 - 6)
     for i, opt in ipairs(opts) do
         draw_row(i, Settings.selected, opt.label, opt.val, px, by + 10, pw, rh, theme)
     end
@@ -369,7 +367,7 @@ function Settings:keypressed(key)
 
     local max_items = Settings.tab == 1 and 9
         or Settings.tab == 2 and 7
-        or Settings.tab == 3 and 4
+        or Settings.tab == 3 and 3
         or Settings.tab == 5 and 6
         or #constants.RESOLUTIONS
 
@@ -412,13 +410,6 @@ function Settings:keypressed(key)
                 Audio.setSFXVolume(math.max(0, math.min(1, (Audio.sfx_vol or 1.0) + dir * 0.1)))
             elseif Settings.selected == 3 then
                 Audio.setMusicVolume(math.max(0, math.min(1, (Audio.music_vol or 0.5) + dir * 0.1)))
-            elseif Settings.selected == 4 then
-                local cur = 1
-                for idx, name in ipairs(Themes.order) do if name == Themes.current_name then cur = idx end end
-                cur = cur + dir
-                if cur < 1 then cur = #Themes.order end
-                if cur > #Themes.order then cur = 1 end
-                Themes.set(Themes.order[cur])
             end
         elseif Settings.tab == 4 then
             -- Select resolution

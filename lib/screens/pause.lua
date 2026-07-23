@@ -1,6 +1,7 @@
 local StateMgr = require("lib.state_mgr")
 local Themes = require("lib.themes")
 local Audio = require("lib.audio")
+local Fonts = require("lib.fonts")
 
 local Pause = {}
 
@@ -15,13 +16,13 @@ function Pause:update(dt)
 end
 
 function Pause:draw()
-    local theme = Themes.get()
+    local theme = Themes.get_ui_theme()
     love.graphics.setColor(0, 0, 0, 0.8)
     love.graphics.rectangle("fill", 100, 150, 420, 300, 12, 12)
     love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.8)
     love.graphics.rectangle("line", 100, 150, 420, 300, 12, 12)
 
-    love.graphics.setFont(love.graphics.newFont(24))
+    love.graphics.setFont(Fonts.get(24))
     love.graphics.setColor(1, 1, 1)
     love.graphics.printf("PAUSED", 100, 175, 420, "center")
 
@@ -36,11 +37,11 @@ function Pause:draw()
             love.graphics.rectangle("fill", 150, y - 5, 320, 35, 8, 8)
             love.graphics.setColor(0.8, 0.8, 0.9)
         end
-        love.graphics.setFont(love.graphics.newFont(16))
+        love.graphics.setFont(Fonts.get(16))
         love.graphics.printf(opt, 150, y + 2, 320, "center")
     end
 
-    love.graphics.setFont(love.graphics.newFont(12))
+    love.graphics.setFont(Fonts.get(12))
     love.graphics.setColor(0.5, 0.5, 0.6)
     love.graphics.printf("UP / DOWN: Select | ENTER: Confirm | ESC: Resume", 100, 415, 420, "center")
 end

@@ -5,6 +5,7 @@ local flux    = require("lib.vendor.flux")
 local Themes  = require("lib.themes")
 local Audio   = require("lib.audio")
 local Save    = require("lib.save")
+local Fonts   = require("lib.fonts")
 local constants = require("lib.constants")
 
 local ModeSelect = {}
@@ -188,7 +189,7 @@ local function draw_mode_icon(icon_char, cx, cy, size, r, g, b, alpha)
     love.graphics.circle("fill", cx, cy, size * 0.45)
 
     -- Icon text
-    love.graphics.setFont(love.graphics.newFont(math.floor(size * 0.68)))
+    love.graphics.setFont(Fonts.get(math.floor(size * 0.68)))
     love.graphics.setColor(r, g, b, alpha)
     love.graphics.printf(icon_char, cx - size, cy - size * 0.4, size * 2, "center")
 end
@@ -230,14 +231,14 @@ local function draw_card(card, x, y, w, h, is_sel, alpha, time)
     end
 
     -- Mode label in header band
-    love.graphics.setFont(love.graphics.newFont(13))
+    love.graphics.setFont(Fonts.get(13))
     love.graphics.setColor(1, 1, 1, alpha * (is_sel and 1.0 or 0.75))
     love.graphics.printf(card.label, x + 4, y + 7, w - 8, "left")
 
     -- Selected indicator (right side of header)
     if is_sel then
         love.graphics.setColor(1, 1, 0.3, alpha * 0.9)
-        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.setFont(Fonts.get(10))
         love.graphics.printf("▶", x + 4, y + 7, w - 10, "right")
     end
 
@@ -248,7 +249,7 @@ local function draw_card(card, x, y, w, h, is_sel, alpha, time)
     draw_mode_icon(card.icon, icon_cx, icon_cy, icon_size, cr, cg, cb, alpha * (is_sel and 1.0 or 0.55))
 
     -- Sublabel below icon
-    love.graphics.setFont(love.graphics.newFont(10))
+    love.graphics.setFont(Fonts.get(10))
     love.graphics.setColor(cr, cg, cb, alpha * (is_sel and 0.95 or 0.5))
     love.graphics.printf(card.sublabel, x + 4, y + h - 22, w - 8, "center")
 
@@ -273,7 +274,7 @@ local function draw_sidebar(card, variant_idx, best_record, x, y, w, h, alpha, t
     local cy = y + pad
 
     -- Mode name header
-    love.graphics.setFont(love.graphics.newFont(18))
+    love.graphics.setFont(Fonts.get(18))
     love.graphics.setColor(cr, cg, cb, alpha)
     love.graphics.printf(card.label, x + pad, cy, w - pad*2, "left")
     cy = cy + 26
@@ -283,7 +284,7 @@ local function draw_sidebar(card, variant_idx, best_record, x, y, w, h, alpha, t
     cy = cy + 8
 
     -- Description
-    love.graphics.setFont(love.graphics.newFont(11))
+    love.graphics.setFont(Fonts.get(11))
     love.graphics.setColor(0.78, 0.82, 0.90, alpha * 0.88)
     love.graphics.printf(card.desc, x + pad, cy, w - pad*2, "left")
     cy = cy + 54
@@ -293,12 +294,12 @@ local function draw_sidebar(card, variant_idx, best_record, x, y, w, h, alpha, t
     love.graphics.rectangle("fill", x + pad, cy, w - pad*2, 1)
     cy = cy + 8
 
-    love.graphics.setFont(love.graphics.newFont(10))
+    love.graphics.setFont(Fonts.get(10))
     love.graphics.setColor(0.55, 0.65, 0.75, alpha * 0.75)
     love.graphics.printf("BEST RECORD", x + pad, cy, w - pad*2, "left")
     cy = cy + 16
 
-    love.graphics.setFont(love.graphics.newFont(12))
+    love.graphics.setFont(Fonts.get(12))
     love.graphics.setColor(1, 0.90, 0.25, alpha * 0.9)
     love.graphics.printf(card.record_fmt(best_record), x + pad, cy, w - pad*2, "left")
     cy = cy + 30
@@ -309,7 +310,7 @@ local function draw_sidebar(card, variant_idx, best_record, x, y, w, h, alpha, t
         love.graphics.rectangle("fill", x + pad, cy, w - pad*2, 1)
         cy = cy + 8
 
-        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.setFont(Fonts.get(10))
         love.graphics.setColor(0.55, 0.65, 0.75, alpha * 0.75)
         love.graphics.printf("SELECT VARIANT", x + pad, cy, w - pad*2, "left")
         cy = cy + 16
@@ -326,20 +327,20 @@ local function draw_sidebar(card, variant_idx, best_record, x, y, w, h, alpha, t
                 rr(x + pad - 4, cy - 2, w - pad*2 + 8, 24, 6)
                 love.graphics.setColor(0.6, 0.6, 0.7, alpha * 0.7)
             end
-            love.graphics.setFont(love.graphics.newFont(12))
+            love.graphics.setFont(Fonts.get(12))
             local vtext = (is_v and "▶ " or "  ") .. variant.label
             love.graphics.printf(vtext, x + pad, cy + 3, w - pad*2, "left")
             cy = cy + 28
         end
 
-        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.setFont(Fonts.get(10))
         love.graphics.setColor(0.45, 0.55, 0.65, alpha * 0.65)
         love.graphics.printf("← → to change", x + pad, cy + 4, w - pad*2, "left")
     end
 
     -- ENTER to start prompt (pulsing)
     local enter_pulse = math.sin(time * 5) * 0.2 + 0.8
-    love.graphics.setFont(love.graphics.newFont(13))
+    love.graphics.setFont(Fonts.get(13))
     love.graphics.setColor(1, 1, 1, alpha * enter_pulse)
     love.graphics.printf("ENTER  —  Start Game", x + pad, y + h - 32, w - pad*2, "center")
     love.graphics.setColor(cr, cg, cb, alpha * enter_pulse * 0.6)
@@ -350,7 +351,7 @@ function ModeSelect:draw()
     local W = love.graphics.getWidth()
     local H = love.graphics.getHeight()
     local alpha = ModeSelect.alpha
-    local theme = Themes.get()
+    local theme = Themes.get_ui_theme()
 
     -- Background
     love.graphics.clear(0.02, 0.04, 0.10)
@@ -361,13 +362,13 @@ function ModeSelect:draw()
     love.graphics.setColor(0.04, 0.06, 0.14, alpha * 0.98)
     love.graphics.rectangle("fill", 0, 0, W, tab_h)
 
-    love.graphics.setFont(love.graphics.newFont(20))
+    love.graphics.setFont(Fonts.get(20))
     love.graphics.setColor(1, 1, 1, alpha)
     love.graphics.printf("PLAY", 0, 13, W * 0.18, "center")
     love.graphics.setColor(0.2, 0.75, 1.0, alpha)
     love.graphics.rectangle("fill", W * 0.01, tab_h - 3, W * 0.16, 3)
 
-    love.graphics.setFont(love.graphics.newFont(15))
+    love.graphics.setFont(Fonts.get(15))
     love.graphics.setColor(0.5, 0.55, 0.65, alpha * 0.7)
     love.graphics.printf("PROGRESS", W * 0.18, 15, W * 0.18, "center")
     love.graphics.setColor(0.35, 0.38, 0.48, alpha * 0.4)
@@ -378,7 +379,7 @@ function ModeSelect:draw()
     love.graphics.rectangle("fill", W * 0.36 + W*0.01, tab_h - 3, W * 0.16, 2)
 
     -- ESC hint top right
-    love.graphics.setFont(love.graphics.newFont(11))
+    love.graphics.setFont(Fonts.get(11))
     love.graphics.setColor(0.45, 0.50, 0.60, alpha * 0.7)
     love.graphics.printf("ESC: Back", W - 100, 16, 90, "right")
 
@@ -418,7 +419,7 @@ function ModeSelect:draw()
         rr(cx, cy, card_w, card_h, 12)
         love.graphics.setColor(0.12, 0.16, 0.28, alpha * 0.35)
         rl(cx, cy, card_w, card_h, 12)
-        love.graphics.setFont(love.graphics.newFont(12))
+        love.graphics.setFont(Fonts.get(12))
         love.graphics.setColor(0.20, 0.25, 0.40, alpha * 0.5)
         love.graphics.printf("COMING SOON", cx, cy + card_h * 0.45, card_w, "center")
     end
@@ -441,14 +442,14 @@ function ModeSelect:draw()
     love.graphics.rectangle("fill", 0, by, W, 2)
 
     love.graphics.setScissor(0, by + 2, W, bottom_bar_h - 2)
-    love.graphics.setFont(love.graphics.newFont(12))
+    love.graphics.setFont(Fonts.get(12))
     love.graphics.setColor(1, 0.85, 0.25, alpha * 0.85)
     local tip = TIPS[ModeSelect.tip_idx]
     love.graphics.printf(tip, W - ModeSelect.tip_scroll, by + 12, #tip * 8, "left")
     love.graphics.setScissor()
 
     -- Footer nav hint
-    love.graphics.setFont(love.graphics.newFont(10))
+    love.graphics.setFont(Fonts.get(10))
     love.graphics.setColor(0.40, 0.45, 0.58, alpha * 0.7)
     love.graphics.printf("← → ↑ ↓ Navigate    LEFT/RIGHT on sidebar: Change Variant    ENTER: Start", 0, by + bottom_bar_h - 18, W, "center")
 end

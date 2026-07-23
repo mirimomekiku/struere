@@ -16,6 +16,7 @@ local Save       = require("lib.save")
 local flux       = require("lib.vendor.flux")
 local CPUEngine  = require("lib.cpu_engine")
 local GameplayOpts = require("lib.gameplay_opts")
+local Fonts      = require("lib.fonts")
 
 local Battle = {}
 
@@ -415,7 +416,7 @@ local function draw_mini_queue(queue, hold, hold_used, x, y, cell, theme, label_
     love.graphics.setColor(0, 0, 0, 0.5)
     rr(x, y, panel_w, Battle.board_h, 6)
 
-    local font_sm = love.graphics.newFont(9)
+    local font_sm = Fonts.get(9)
     love.graphics.setFont(font_sm)
 
     -- HOLD
@@ -450,10 +451,10 @@ local function draw_stats_panel(score, lines, level, x, y, w, theme)
     rr(x, y, w, 90, 6)
 
     local function stat(label, val, sy)
-        love.graphics.setFont(love.graphics.newFont(8))
+        love.graphics.setFont(Fonts.get(8))
         love.graphics.setColor(0.50, 0.60, 0.75)
         love.graphics.printf(label, x, sy, w, "center")
-        love.graphics.setFont(love.graphics.newFont(13))
+        love.graphics.setFont(Fonts.get(13))
         love.graphics.setColor(1, 0.90, 0.25)
         love.graphics.printf(tostring(val), x, sy + 11, w, "center")
     end
@@ -471,7 +472,7 @@ local function draw_garbage_arrows(cx, cy, ch, arrows)
     love.graphics.setColor(0.10, 0.15, 0.30, 0.5)
     love.graphics.rectangle("fill", cx + cw/2 - 1, cy, 2, ch)
 
-    love.graphics.setFont(love.graphics.newFont(13))
+    love.graphics.setFont(Fonts.get(13))
     for _, arr in ipairs(arrows) do
         local pulse = math.sin(love.timer.getTime() * 8) * 0.2 + 0.8
         if arr.dir == "right" then
@@ -494,7 +495,7 @@ local function draw_garbage_arrows(cx, cy, ch, arrows)
     -- Pending garbage indicators (static)
     if Battle.player_pending_garbage > 0 then
         love.graphics.setColor(1, 0.3, 0.1, 0.85)
-        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.setFont(Fonts.get(10))
         love.graphics.printf("⚠ +" .. Battle.player_pending_garbage,
             cx, cy + ch - 30, cw, "center")
     end
@@ -514,10 +515,10 @@ local function draw_result_overlay(W, H)
         love.graphics.setColor(1.0, 0.20, 0.20, t)
     end
 
-    love.graphics.setFont(love.graphics.newFont(52))
+    love.graphics.setFont(Fonts.get(52))
     love.graphics.printf(is_win and "YOU WIN!" or "YOU LOSE", 0, H * 0.32, W, "center")
 
-    love.graphics.setFont(love.graphics.newFont(18))
+    love.graphics.setFont(Fonts.get(18))
     love.graphics.setColor(1, 1, 1, t * 0.85)
     local subtitle = is_win
         and string.format("Score: %d   Lines: %d", P.score, P.lines)
@@ -527,13 +528,13 @@ local function draw_result_overlay(W, H)
     if Battle.result_timer > 1.5 then
         local blink = math.sin(Battle.result_timer * 4) * 0.3 + 0.7
         love.graphics.setColor(1, 1, 1, blink)
-        love.graphics.setFont(love.graphics.newFont(14))
+        love.graphics.setFont(Fonts.get(14))
         love.graphics.printf("ENTER — Play Again    ESC — Menu", 0, H * 0.62, W, "center")
     end
 end
 
 function Battle:draw()
-    local theme = Themes.get()
+    local theme = Themes.get_board_theme()
     local W, H  = Battle.W or love.graphics.getWidth(), Battle.H or love.graphics.getHeight()
     local a     = Battle.alpha
     local cell  = Battle.cell
@@ -562,7 +563,7 @@ function Battle:draw()
     love.graphics.rectangle("fill", 0, tb - 2, W, 2)
 
     -- Title
-    love.graphics.setFont(love.graphics.newFont(18))
+    love.graphics.setFont(Fonts.get(18))
     love.graphics.setColor(1, 1, 1, a)
     love.graphics.printf("VS CPU", 0, 12, W, "center")
 
@@ -574,13 +575,13 @@ function Battle:draw()
         boss = {0.85, 0.10, 0.85},
     }
     local dc = diff_colors[Battle.difficulty] or {1,1,1}
-    love.graphics.setFont(love.graphics.newFont(11))
+    love.graphics.setFont(Fonts.get(11))
     love.graphics.setColor(dc[1], dc[2], dc[3], a * 0.9)
     local diff_labels = {easy="EASY", medium="MEDIUM", hard="HARD", boss="BOSS ★"}
     love.graphics.printf(diff_labels[Battle.difficulty] or "?", W - 100, 14, 90, "right")
 
     -- Battle level + timer
-    love.graphics.setFont(love.graphics.newFont(11))
+    love.graphics.setFont(Fonts.get(11))
     love.graphics.setColor(0.55, 0.65, 0.80, a * 0.8)
     local mins = math.floor(Battle.timer / 60)
     local secs = Battle.timer % 60
@@ -589,7 +590,7 @@ function Battle:draw()
 
     -- ── Player side ───────────────────────────────────────────────────────────
     -- Label
-    love.graphics.setFont(love.graphics.newFont(12))
+    love.graphics.setFont(Fonts.get(12))
     love.graphics.setColor(0.40, 0.80, 1.0, a * 0.9)
     love.graphics.printf("PLAYER", pbx - pw, pby - 20, bw + pw * 2, "center")
 
@@ -618,7 +619,7 @@ function Battle:draw()
     draw_garbage_arrows(Battle.center_x, pby, bh, Battle.arrows)
 
     -- ── CPU side ──────────────────────────────────────────────────────────────
-    love.graphics.setFont(love.graphics.newFont(12))
+    love.graphics.setFont(Fonts.get(12))
     local cpu_diff_labels = {easy="CPU [Easy]", medium="CPU [Medium]",
                               hard="CPU [Hard]", boss="CPU [BOSS]"}
     love.graphics.setColor(1.0, 0.40, 0.40, a * 0.9)
@@ -654,7 +655,7 @@ function Battle:draw()
     love.graphics.rectangle("fill", 0, by2, W, Battle.bot_bar)
     love.graphics.setColor(0.12, 0.20, 0.40, a * 0.6)
     love.graphics.rectangle("fill", 0, by2, W, 2)
-    love.graphics.setFont(love.graphics.newFont(10))
+    love.graphics.setFont(Fonts.get(10))
     love.graphics.setColor(0.40, 0.45, 0.58, a * 0.7)
     love.graphics.printf("← → Move    Z Rotate CCW    X/Up Rotate CW    Shift Hold    Down Soft Drop    Space Hard Drop    ESC Forfeit",
         0, by2 + 10, W, "center")

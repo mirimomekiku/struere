@@ -138,6 +138,17 @@ local function evaluate(board, weights, lines_cleared)
          + weights.bumps  * bumps
 end
 
+local scratch1 = Board.new()
+local scratch2 = Board.new()
+
+local function copy_board_into(src, dst)
+    for c = 1, constants.GRID_COLS do
+        for r = 1, constants.TOTAL_ROWS do
+            dst.matrix:set(c, r, src.matrix:get(c, r))
+        end
+    end
+end
+
 -- ─── Find best placement for a piece type ────────────────────────────────────
 
 local function best_placement(board, ptype, weights, error_rate, lookahead_ptype)
@@ -151,8 +162,8 @@ local function best_placement(board, ptype, weights, error_rate, lookahead_ptype
                 local row = find_landing_row(board, ptype, rot, col)
                 -- Only consider placements within visible area
                 if row >= constants.BUFFER_ROWS + 1 then
-                    local scratch = Board.deep_copy(board)
-                    local cleared = simulate_placement(scratch, ptype, rot, row, col)
+                    copy_board_into(board, scratch1)
+                    local cleared = simulate_placement(scratch1, ptype, rot, row, col)
                     local score
 
                     if lookahead_ptype then
@@ -160,10 +171,10 @@ local function best_placement(board, ptype, weights, error_rate, lookahead_ptype
                         local next_best = -math.huge
                         for r2 = 0, 3 do
                             for c2 = 1, constants.GRID_COLS do
-                                if not Collision.any_overlap(scratch, lookahead_ptype, r2, constants.BUFFER_ROWS + 1, c2) then
-                                    local row2 = find_landing_row(scratch, lookahead_ptype, r2, c2)
+                                if not Collision.any_overlap(scratch1, lookahead_ptype, r2, constants.BUFFER_ROWS + 1, c2) then
+                                    local row2 = find_landing_row(scratch1, lookahead_ptype, r2, c2)
                                     if row2 >= constants.BUFFER_ROWS + 1 then
-                                        local scratch2 = Board.deep_copy(scratch)
+                                        copy_board_into(scratch1, scratch2)
                                         local cleared2 = simulate_placement(scratch2, lookahead_ptype, r2, row2, c2)
                                         local s2 = evaluate(scratch2, weights, cleared + cleared2)
                                         if s2 > next_best then next_best = s2 end
@@ -173,7 +184,7 @@ local function best_placement(board, ptype, weights, error_rate, lookahead_ptype
                         end
                         score = next_best
                     else
-                        score = evaluate(scratch, weights, cleared)
+                        score = evaluate(scratch1, weights, cleared)
                     end
 
                     if score > best_score then

@@ -156,13 +156,25 @@ function Input.keyreleased(key)
 
     local action = Input.bindings[key]
     if action == "MOVE_LEFT" and Input.das.direction == -1 then
-        Input.das.direction = 0
-        Input.das.timer = 0
-        Input.das.arr_timer = 0
+        if Input.is_held("MOVE_RIGHT") then
+            Input.das.direction = 1
+            Input.das.timer = 0
+            Input.das.arr_timer = 0
+        else
+            Input.das.direction = 0
+            Input.das.timer = 0
+            Input.das.arr_timer = 0
+        end
     elseif action == "MOVE_RIGHT" and Input.das.direction == 1 then
-        Input.das.direction = 0
-        Input.das.timer = 0
-        Input.das.arr_timer = 0
+        if Input.is_held("MOVE_LEFT") then
+            Input.das.direction = -1
+            Input.das.timer = 0
+            Input.das.arr_timer = 0
+        else
+            Input.das.direction = 0
+            Input.das.timer = 0
+            Input.das.arr_timer = 0
+        end
     end
 
     if action == "SOFT_DROP" then
@@ -174,15 +186,26 @@ function Input.update(dt)
     if Input.player then Input.player:update() end
     local fired = {}
 
+    -- Safety check: stop DAS if neither direction is currently held
+    if Input.das.direction == -1 and not Input.is_held("MOVE_LEFT") then
+        Input.das.direction = Input.is_held("MOVE_RIGHT") and 1 or 0
+        Input.das.timer = 0
+        Input.das.arr_timer = 0
+    elseif Input.das.direction == 1 and not Input.is_held("MOVE_RIGHT") then
+        Input.das.direction = Input.is_held("MOVE_LEFT") and -1 or 0
+        Input.das.timer = 0
+        Input.das.arr_timer = 0
+    end
+
     if Input.das.direction ~= 0 then
         Input.das.timer = Input.das.timer + dt
         if Input.das.timer >= constants.DAS_DELAY then
             Input.das.arr_timer = Input.das.arr_timer + dt
-            if Input.das.arr_timer >= constants.ARR_DELAY then
+            while Input.das.arr_timer >= constants.ARR_DELAY do
                 Input.das.arr_timer = Input.das.arr_timer - constants.ARR_DELAY
                 if Input.das.direction == -1 then
                     table.insert(fired, "MOVE_LEFT")
-                else
+                elseif Input.das.direction == 1 then
                     table.insert(fired, "MOVE_RIGHT")
                 end
             end

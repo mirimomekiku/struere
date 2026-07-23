@@ -1,5 +1,7 @@
 local Scoring = require("lib.scoring")
 
+local Fonts = require("lib.fonts")
+
 local BaseMode = {}
 BaseMode.__index = BaseMode
 
@@ -169,11 +171,11 @@ function BaseMode:drawStatRow(label, val, x, y, w, label_color, val_color, theme
     love.graphics.setColor(0, 0, 0, 0.45)
     love.graphics.rectangle("fill", x, y, w, 38, 6, 6)
 
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(label_color[1], label_color[2], label_color[3])
     love.graphics.printf(label, x, y + 4, w, "center")
 
-    love.graphics.setFont(love.graphics.newFont(14))
+    love.graphics.setFont(Fonts.get(14))
     love.graphics.setColor(val_color[1], val_color[2], val_color[3])
     love.graphics.printf(tostring(val), x, y + 18, w, "center")
 end
@@ -187,7 +189,7 @@ function BaseMode:drawProgressBar(cur, total, x, y, w, h, color)
         love.graphics.rectangle("fill", x, y, w * pct, h, 3, 3)
     end
     -- Track label
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.8, 0.8, 0.9, 0.7)
     if total then
         love.graphics.printf(string.format("%d / %d", cur, total), x, y - 1, w, "center")

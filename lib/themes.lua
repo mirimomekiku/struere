@@ -140,6 +140,14 @@ function Themes.set(name)
     end
 end
 
+function Themes.get_ui_theme()
+    return Themes.list.retro
+end
+
+function Themes.get_board_theme()
+    return Themes.current
+end
+
 function Themes.get()
     return Themes.current
 end

@@ -16,6 +16,7 @@ local tick = require("lib.vendor.tick")
 local flux = require("lib.vendor.flux")
 local hermes = require("lib.vendor.hermes")
 local GameplayOpts = require("lib.gameplay_opts")
+local Fonts = require("lib.fonts")
 
 local Gameplay = {}
 
@@ -84,7 +85,7 @@ function Gameplay.lock_piece()
     local cleared = #clear_rows
 
     if cleared > 0 then
-        local theme = Themes.get()
+        local theme = Themes.get_board_theme()
         hermes:emit("line_clear", cleared, clear_rows)
         for _, row in ipairs(clear_rows) do
             local bx = constants.BOARD_X + 5 * constants.CELL_SIZE
@@ -291,7 +292,7 @@ end
 -- Right panel: NEXT queue + stats
 -- ─────────────────────────────────────────────────────────────────────────────
 function Gameplay:draw()
-    local theme = Themes.get()
+    local theme = Themes.get_board_theme()
     local W = love.graphics.getWidth()
     local H = love.graphics.getHeight()
 
@@ -388,9 +389,9 @@ function Gameplay:draw()
     end
 
     -- ── BOTTOM HINT ──────────────────────────────────────────────────────
-    love.graphics.setFont(love.graphics.newFont(10))
+    love.graphics.setFont(Fonts.get(10))
     love.graphics.setColor(0.4, 0.4, 0.5)
-    love.graphics.printf("T: Theme  P: Pause  ESC: Menu", 0, H - 18, W, "center")
+    love.graphics.printf("P: Pause  ESC: Menu", 0, H - 18, W, "center")
 
     love.graphics.pop()
 
@@ -455,10 +456,6 @@ function Gameplay:keypressed(key)
                 Audio.play("hold")
             end
         end
-    elseif action == "THEME" then
-        Gameplay.theme_name = Themes.cycle()
-        Save.set("settings", "theme", Themes.current_name)
-        Save.save()
     elseif action == "PAUSE" then
         state_mgr.push("pause")
     end

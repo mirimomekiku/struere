@@ -25,7 +25,7 @@ local C = {
     LOCK_DELAY = 0.5,
     LOCK_MOVES_MAX = 15,
 
-    DAS_DELAY = 0.15,
+    DAS_DELAY = 0.5,
     ARR_DELAY = 0.05,
 
     LINES_PER_LEVEL = 10,

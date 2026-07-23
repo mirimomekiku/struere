@@ -1,4 +1,5 @@
 local BaseMode = require("lib.modes.base")
+local Fonts    = require("lib.fonts")
 
 local Sprint = {}
 Sprint.__index = Sprint
@@ -32,17 +33,17 @@ function Sprint:drawHUD(state, x, y)
     love.graphics.setColor(0, 0, 0, 0.5)
     love.graphics.rectangle("fill", x, y, w, 52, 8, 8)
 
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.40, 0.70, 0.90, 0.85)
     love.graphics.printf("TIME", x, y + 4, w, "center")
 
-    love.graphics.setFont(love.graphics.newFont(22))
+    love.graphics.setFont(Fonts.get(22))
     love.graphics.setColor(0.15, 0.90, 1.0)
     love.graphics.printf(self:getTimeFormatted(true), x, y + 16, w, "center")
 
     -- Personal best
     if self.best_time then
-        love.graphics.setFont(love.graphics.newFont(9))
+        love.graphics.setFont(Fonts.get(9))
         love.graphics.setColor(1, 0.85, 0.25, 0.7)
         local bt = self.best_time
         love.graphics.printf(string.format("PB: %02d:%06.3f", math.floor(bt/60), bt%60),
@@ -54,10 +55,10 @@ function Sprint:drawHUD(state, x, y)
     -- Lines progress bar
     love.graphics.setColor(0, 0, 0, 0.45)
     love.graphics.rectangle("fill", x, row_y, w, 46, 6, 6)
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.40, 0.70, 0.90, 0.85)
     love.graphics.printf("LINES", x, row_y + 4, w, "center")
-    love.graphics.setFont(love.graphics.newFont(16))
+    love.graphics.setFont(Fonts.get(16))
     love.graphics.setColor(0, 1, 0.7)
     love.graphics.printf(string.format("%d / %d", self.lines_cleared, self.line_goal),
         x, row_y + 18, w, "center")
@@ -76,7 +77,7 @@ function Sprint:drawHUD(state, x, y)
     self:drawStatRow("PIECES", self.pieces_placed, x, row_y, w)
 
     -- Mode tag
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.08, 0.55, 0.75, 0.8)
     love.graphics.printf("SPRINT  " .. self.line_goal .. "L", x, row_y + 46, w, "center")
 end

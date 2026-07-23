@@ -35,8 +35,12 @@ function Board.place_piece(board, piece)
 end
 
 function Board.clear_lines(board)
-    local cleared = {}
-    for r = constants.TOTAL_ROWS, constants.BUFFER_ROWS + 1, -1 do
+    local write_r = constants.TOTAL_ROWS
+    local cleared_count = 0
+    local cleared_rows = {}
+
+    -- Single pass from bottom to top
+    for r = constants.TOTAL_ROWS, 1, -1 do
         local full = true
         for c = 1, constants.GRID_COLS do
             if not Board.get_cell(board, r, c) then
@@ -45,25 +49,26 @@ function Board.clear_lines(board)
             end
         end
         if full then
-            table.insert(cleared, r)
-        end
-    end
-
-    for _, r in ipairs(cleared) do
-        -- Shift rows above 'r' down
-        for y = r, 2, -1 do
-            for x = 1, constants.GRID_COLS do
-                local prev = board.matrix:get(x, y - 1)
-                board.matrix:set(x, y, prev)
+            cleared_count = cleared_count + 1
+            table.insert(cleared_rows, r)
+        else
+            if write_r ~= r then
+                for c = 1, constants.GRID_COLS do
+                    Board.set_cell(board, write_r, c, Board.get_cell(board, r, c))
+                end
             end
-        end
-        -- Clear top row
-        for x = 1, constants.GRID_COLS do
-            board.matrix:set(x, 1, nil)
+            write_r = write_r - 1
         end
     end
 
-    return #cleared
+    -- Clear remaining top rows
+    for r = write_r, 1, -1 do
+        for c = 1, constants.GRID_COLS do
+            Board.set_cell(board, r, c, nil)
+        end
+    end
+
+    return cleared_count, cleared_rows
 end
 
 function Board.get_ghost_row(board, piece)

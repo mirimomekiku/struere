@@ -1,4 +1,5 @@
 local BaseMode = require("lib.modes.base")
+local Fonts    = require("lib.fonts")
 local Scoring  = require("lib.scoring")
 
 local Blitz = {}
@@ -57,10 +58,10 @@ function Blitz:drawHUD(state, x, y)
     -- Score (big)
     love.graphics.setColor(0, 0, 0, 0.5)
     love.graphics.rectangle("fill", x, y, w, 52, 8, 8)
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.80, 0.55, 0.20, 0.85)
     love.graphics.printf("SCORE", x, y + 4, w, "center")
-    love.graphics.setFont(love.graphics.newFont(20))
+    love.graphics.setFont(Fonts.get(20))
     love.graphics.setColor(1, 0.90, 0.25)
     love.graphics.printf(tostring(state.score), x, y + 18, w, "center")
 
@@ -73,7 +74,7 @@ function Blitz:drawHUD(state, x, y)
 
     love.graphics.setColor(0, 0, 0, 0.5)
     love.graphics.rectangle("fill", x, row_y, w, 52, 6, 6)
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.80, 0.55, 0.20, 0.85)
     love.graphics.printf("TIME LEFT", x, row_y + 4, w, "center")
 
@@ -82,7 +83,7 @@ function Blitz:drawHUD(state, x, y)
     local tr = math.min(1, urgency * 2)
     local tg = math.max(0, 1 - (urgency - 0.5) * 2)
 
-    love.graphics.setFont(love.graphics.newFont(22))
+    love.graphics.setFont(Fonts.get(22))
     love.graphics.setColor(tr, tg, 0.1)
     if time_left < 10 then
         -- Pulse when urgent
@@ -95,10 +96,10 @@ function Blitz:drawHUD(state, x, y)
     -- Combo
     love.graphics.setColor(0, 0, 0, 0.45)
     love.graphics.rectangle("fill", x, row_y, w, 38, 6, 6)
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.55, 0.65, 0.75)
     love.graphics.printf("COMBO MULT", x, row_y + 4, w, "center")
-    love.graphics.setFont(love.graphics.newFont(16))
+    love.graphics.setFont(Fonts.get(16))
     if self.combo > 1 then
         love.graphics.setColor(1, 0.75, 0)
         love.graphics.printf(string.format("×%.1f  COMBO ×%d", self.combo_multiplier, self.combo),
@@ -115,20 +116,20 @@ function Blitz:drawHUD(state, x, y)
 
     -- Back-to-back indicator
     if self.back_to_back then
-        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.setFont(Fonts.get(10))
         love.graphics.setColor(1, 0.55, 0.05, 0.9)
         love.graphics.printf("🔥 BACK-TO-BACK TETRIS", x, row_y, w, "center")
     end
 
     -- All clears
     if (self.all_clears or 0) > 0 then
-        love.graphics.setFont(love.graphics.newFont(9))
+        love.graphics.setFont(Fonts.get(9))
         love.graphics.setColor(0.25, 1, 0.65, 0.85)
         love.graphics.printf(string.format("ALL CLEARS: %d", self.all_clears), x, row_y + 16, w, "center")
     end
 
     -- Mode tag
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.70, 0.40, 0.08, 0.8)
     love.graphics.printf("BLITZ  2 MIN", x, row_y + 32, w, "center")
 end

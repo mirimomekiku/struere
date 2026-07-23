@@ -43,7 +43,7 @@ function Menu.createMode()
 end
 
 function Menu.draw()
-    local theme = Themes.get()
+    local theme = Themes.get_ui_theme()
     love.graphics.clear(theme.background[1], theme.background[2], theme.background[3])
 
     if Menu.show_custom_menu then
