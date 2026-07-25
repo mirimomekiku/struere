@@ -116,4 +116,28 @@ function Board.deep_copy(board)
     return { matrix = new_matrix }
 end
 
+-- Get the row index (1..40) of the highest occupied block on the board
+function Board.get_highest_block_row(board)
+    if not board then return constants.TOTAL_ROWS + 1 end
+    for r = 1, constants.TOTAL_ROWS do
+        for c = 1, constants.GRID_COLS do
+            if Board.get_cell(board, r, c) then
+                return r
+            end
+        end
+    end
+    return constants.TOTAL_ROWS + 1
+end
+
+-- Get danger level (0.0 to 1.0) based on how close highest block is to top
+function Board.get_danger_level(board)
+    local highest = Board.get_highest_block_row(board)
+    -- Visible grid rows are 21..40. Danger zone starts at row <= 25 (15+ blocks high)
+    if highest <= 25 then
+        local level = math.min(1.0, (26 - highest) / 5.0)
+        return level
+    end
+    return 0.0
+end
+
 return Board

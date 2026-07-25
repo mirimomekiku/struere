@@ -28,6 +28,9 @@ Effects.board_offset_y_vel = 0  -- Vertical velocity
 Effects.board_stiffness = 320   -- Dynamic spring stiffness
 Effects.board_damping = 17      -- Dynamic spring damping
 
+Effects.danger_level = 0        -- 0.0 to 1.0 danger threshold
+Effects.danger_timer = 0        -- Animation timer for danger pulse
+
 function Effects.init_bg_particles()
     if #Effects.bg_particles > 0 then return end
     local W = love.graphics.getWidth()
@@ -270,6 +273,43 @@ function Effects.spawn_line_clear_upward_particles(board_x, board_y, cell_size, 
     end
 end
 
+function Effects.spawn_undo_transition(removed_cells, theme_name)
+    if not removed_cells or #removed_cells == 0 then return end
+
+    local Themes = require("lib.themes")
+    local constants = require("lib.constants")
+    local theme = Themes.get_board_theme(theme_name)
+    local cs = constants.CELL_SIZE
+
+    -- Upward spring float impulse to playfield canvas
+    Effects.board_offset_y_vel = Effects.board_offset_y_vel - 140
+    Effects.board_tilt_vel = Effects.board_tilt_vel + (math.random() - 0.5) * 0.14
+
+    for _, cell in ipairs(removed_cells) do
+        local bx = constants.BOARD_X + (cell.c - 1) * cs
+        local by = constants.BOARD_Y + (cell.r - 21) * cs
+        local cell_color = (theme and theme.colors and theme.colors[cell.type]) or {100, 200, 255}
+
+        -- Disintegration burst particles
+        Effects.particles_spawn(bx + cs / 2, by + cs / 2, cell_color, 10)
+
+        -- Upward floating dissolve mino particles
+        for _ = 1, 5 do
+            table.insert(Effects.upward_particles, {
+                x = bx + math.random(2, cs - 2),
+                y = by + math.random(2, cs - 2),
+                vx = (math.random() - 0.5) * 75,
+                vy = -math.random(100, 220),
+                gravity = -60,
+                life = math.random(35, 65) / 100,
+                max_life = 0.65,
+                color = cell_color,
+                size = math.random(4, 8)
+            })
+        end
+    end
+end
+
 function Effects.particles_update(dt)
     for i = #Effects.particles, 1, -1 do
         local p = Effects.particles[i]
@@ -357,8 +397,78 @@ function Effects.particles_draw()
     end
 end
 
+function Effects.set_danger_level(level)
+    Effects.danger_level = math.max(0, math.min(1.0, level or 0))
+end
+
+function Effects.draw_danger_indicator(bx, by, board_w, board_h, cs)
+    if Effects.danger_level <= 0 then return end
+
+    local Fonts = require("lib.fonts")
+    local t = Effects.danger_timer
+    local dl = Effects.danger_level
+    local W = love.graphics.getWidth()
+    local H = love.graphics.getHeight()
+
+    -- 1. Fullscreen Red Alarm Vignette / Heartbeat
+    local vignette_alpha = dl * (0.12 + 0.10 * math.sin(t * 10))
+    love.graphics.setColor(0.9, 0.05, 0.08, vignette_alpha)
+    love.graphics.rectangle("fill", 0, 0, W, 18)
+    love.graphics.rectangle("fill", 0, H - 18, W, 18)
+    love.graphics.rectangle("fill", 0, 0, 18, H)
+    love.graphics.rectangle("fill", W - 18, 0, 18, H)
+
+    -- 2. Top Boundary Flashing Red Laser Beam / Hazard Line
+    local line_y = by
+    local pulse = 0.5 + 0.5 * math.sin(t * 14)
+    love.graphics.setColor(1.0, 0.15, 0.20, (0.5 + 0.5 * pulse) * dl)
+    love.graphics.setLineWidth(3)
+    love.graphics.line(bx - 4, line_y, bx + board_w + 4, line_y)
+    love.graphics.setLineWidth(1)
+
+    -- 3. Fancy Shaking Danger Warning Sign Badge
+    local cx = bx + board_w / 2
+    local cy = by - 24
+    local shake_x = (math.random() - 0.5) * 8 * dl
+    local shake_y = (math.random() - 0.5) * 6 * dl
+    local tilt = (math.random() - 0.5) * 0.08 * dl
+    local scale = 1.0 + 0.06 * math.sin(t * 18) * dl
+
+    love.graphics.push()
+    love.graphics.translate(cx + shake_x, cy + shake_y)
+    love.graphics.rotate(tilt)
+    love.graphics.scale(scale, scale)
+
+    local card_w, card_h = 175, 34
+    -- Dark crimson badge card
+    love.graphics.setColor(0.32, 0.04, 0.06, 0.95)
+    love.graphics.rectangle("fill", -card_w / 2, -card_h / 2, card_w, card_h, 6, 6)
+
+    -- Pulsating yellow-crimson glowing border
+    local br, bg, bb = 1.0, 0.85 * pulse, 0.2 * pulse
+    love.graphics.setColor(br, bg, bb, 0.95)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", -card_w / 2, -card_h / 2, card_w, card_h, 6, 6)
+    love.graphics.setLineWidth(1)
+
+    -- Danger Warning Text & Icon
+    love.graphics.setFont(Fonts.get(12))
+    love.graphics.setColor(1, 0.95, 0.3, 0.9 + 0.1 * pulse)
+    love.graphics.printf("⚠️ TOP OUT DANGER!", -card_w / 2, -card_h / 2 + 8, card_w, "center")
+
+    love.graphics.pop()
+end
+
 function Effects.update(dt)
     shack:update(dt)
+    Effects.danger_timer = (Effects.danger_timer or 0) + dt
+
+    if Effects.danger_level > 0 then
+        local d_shake = Effects.danger_level * 22.0
+        Effects.board_offset_x_vel = Effects.board_offset_x_vel + (math.random() - 0.5) * d_shake
+        Effects.board_offset_y_vel = Effects.board_offset_y_vel + (math.random() - 0.5) * d_shake
+        Effects.board_tilt_vel = Effects.board_tilt_vel + (math.random() - 0.5) * 0.12 * Effects.danger_level
+    end
 
     -- Spring physics update for Board Tilt & Offset Vectors
     local tilt_accel = -Effects.board_stiffness * Effects.board_tilt - Effects.board_damping * Effects.board_tilt_vel
@@ -384,6 +494,8 @@ function Effects.clear()
     Effects.upward_particles = {}
     Effects.popups = {}
     Effects.bg_particles = {}
+    Effects.danger_level = 0
+    Effects.danger_timer = 0
     Effects.board_tilt = 0
     Effects.board_tilt_vel = 0
     Effects.board_offset_x = 0

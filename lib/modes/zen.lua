@@ -41,33 +41,64 @@ function Zen:beforeLock(state)
             score = state.score,
             piece_type = state.current_piece and state.current_piece.type or "I"
         })
-        if #self.undo_stack > 50 then table.remove(self.undo_stack, 1) end
+        if #self.undo_stack > 5 then
+            table.remove(self.undo_stack, 1) -- Keep max 5 undos
+        end
         self.redo_stack = {} -- Clear redo history on new action
     end
 end
 
--- Undo board & piece state
+-- Undo board & piece state (Max 5 undos + smooth block disintegration animation)
 function Zen:tryUndo(state)
-    if #self.undo_stack > 0 then
-        if state.board then
-            table.insert(self.redo_stack, {
-                board = Board.deep_copy(state.board),
-                lines = state.lines,
-                score = state.score,
-                piece_type = state.current_piece and state.current_piece.type or "I"
-            })
-        end
-        local snapshot = table.remove(self.undo_stack)
-        state.board = snapshot.board
-        state.lines = snapshot.lines
-        state.score = snapshot.score
-        state.displayed_score = snapshot.score
-        state.spawn_piece(snapshot.piece_type)
-        Effects.spawn_popup("UNDO", constants.BOARD_X + 5 * constants.CELL_SIZE, constants.BOARD_Y + 10 * constants.CELL_SIZE, {0.2, 0.8, 1.0})
-        Audio.play("hold")
+    local pop_x = constants.BOARD_X + 5 * constants.CELL_SIZE
+    local pop_y = constants.BOARD_Y + 9 * constants.CELL_SIZE
+
+    if #self.undo_stack == 0 then
+        Effects.spawn_popup("MAX UNDO REACHED (5/5)", pop_x, pop_y, {1.0, 0.35, 0.35})
+        Audio.play("move")
         return true
     end
-    return false
+
+    if state.board then
+        table.insert(self.redo_stack, {
+            board = Board.deep_copy(state.board),
+            lines = state.lines,
+            score = state.score,
+            piece_type = state.current_piece and state.current_piece.type or "I"
+        })
+    end
+
+    local snapshot = table.remove(self.undo_stack)
+
+    -- Calculate cells of the recently placed block removed during undo
+    local removed_cells = {}
+    if state.board and snapshot.board then
+        for r = 1, constants.TOTAL_ROWS do
+            for c = 1, constants.GRID_COLS do
+                local old_cell = Board.get_cell(state.board, r, c)
+                local new_cell = Board.get_cell(snapshot.board, r, c)
+                if old_cell and not new_cell then
+                    table.insert(removed_cells, { r = r, c = c, type = old_cell })
+                end
+            end
+        end
+    end
+
+    -- Update state
+    state.board = snapshot.board
+    state.lines = snapshot.lines
+    state.score = snapshot.score
+    state.displayed_score = snapshot.score
+    state.spawn_piece(snapshot.piece_type)
+
+    -- Trigger smooth block disintegration & upward float spring animation
+    Effects.spawn_undo_transition(removed_cells, state.theme_name)
+
+    -- Display popup text indicator with remaining undo count
+    local remaining = #self.undo_stack
+    Effects.spawn_popup(string.format("UNDO (%d LEFT)", remaining), pop_x, pop_y, {0.25, 0.85, 1.0})
+    Audio.play("hold")
+    return true
 end
 
 -- Redo board & piece state

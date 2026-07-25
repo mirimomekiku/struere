@@ -48,17 +48,13 @@ function Gameplay.spawn_piece(piece_type)
     if Collision.any_overlap(Gameplay.board, Gameplay.current_piece.type,
                              Gameplay.current_piece.rotation,
                              Gameplay.current_piece.row, Gameplay.current_piece.col) then
-        if Gameplay.mode and not Gameplay.mode.can_lose then
-            Gameplay.board = Board.new()
-            Queue.init(Gameplay.randomizer, constants.NEXT_QUEUE_SIZE)
-            Gameplay.current_piece = Piece.new(Queue.pop(Gameplay.randomizer), 21, 4)
-        else
-            Gameplay.game_over = true
-            if Gameplay.mode then Gameplay.mode:onGameOver(Gameplay) end
-            Audio.play("game_over")
-            Gameplay.saveScore()
-            Save.clearActiveRun()
-        end
+        Gameplay.game_over = true
+        Gameplay.game_over_sel = 1
+        if Gameplay.mode then Gameplay.mode:onGameOver(Gameplay) end
+        Audio.play("game_over")
+        Effects.set_danger_level(0)
+        Gameplay.saveScore()
+        Save.clearActiveRun()
     end
     Gameplay.is_grounded = false
     Gameplay.lock_timer = 0
@@ -272,6 +268,13 @@ function Gameplay:update(dt)
 
     Effects.update_background_particles(dt, Themes.current_name)
 
+    if Gameplay.board and not Gameplay.game_over and not (Gameplay.mode and Gameplay.mode.show_preset_overlay) then
+        local danger = Board.get_danger_level(Gameplay.board)
+        Effects.set_danger_level(danger)
+    else
+        Effects.set_danger_level(0)
+    end
+
     -- Freeze gameplay & countdown while Preset Loader overlay is active
     if Gameplay.mode and Gameplay.mode.show_preset_overlay then
         Effects.update(dt)
@@ -406,6 +409,8 @@ function Gameplay:draw()
     Effects.particles_draw()
     love.graphics.pop()
 
+    Effects.draw_danger_indicator(bx, by, board_w, board_h, cs)
+
     -- ── LEFT PANEL: HOLD ──────────────────────────────────────────────────
     love.graphics.setFont(Fonts.get(10))
     love.graphics.setColor(0.7, 0.7, 0.8)
@@ -500,29 +505,110 @@ function Gameplay:draw()
     InputPrompts.draw_action_icon("PAUSE", hx + 190, hy, 16)
     love.graphics.print("Pause", hx + 208, hy + 1)
 
-    -- ── GAME OVER OVERLAY ─────────────────────────────────────────────────
+    -- ── GAME OVER / VICTORY PROMPT MODAL OVERLAY ──────────────────────────
     if Gameplay.game_over then
-        local ox = bx + math.floor(board_w * 0.1)
-        local oy = by + math.floor(board_h * 0.35)
-        local ow = math.floor(board_w * 0.8)
-        love.graphics.setColor(0, 0, 0, 0.88)
-        love.graphics.rectangle("fill", ox, oy, ow, 110, 10, 10)
-        love.graphics.setColor(theme.accent[1], theme.accent[2], theme.accent[3], 0.7)
-        love.graphics.rectangle("line", ox, oy, ow, 110, 10, 10)
+        local mw, mh = 380, 210
+        local mx = math.floor((W - mw) / 2)
+        local my = math.floor((H - mh) / 2)
+        local sel = Gameplay.game_over_sel or 1
 
-        love.graphics.setFont(love.graphics.newFont(22))
+        -- Dark Backdrop Overlay
+        love.graphics.setColor(0, 0, 0, 0.78)
+        love.graphics.rectangle("fill", 0, 0, W, H)
+
+        -- Modal Container Card
+        love.graphics.setColor(0.06, 0.08, 0.15, 0.96)
+        love.graphics.rectangle("fill", mx, my, mw, mh, 10, 10)
+
+        local border_color = Gameplay.victory and {0.2, 0.95, 0.45} or {0.95, 0.25, 0.25}
+        love.graphics.setColor(border_color[1], border_color[2], border_color[3], 0.85)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", mx, my, mw, mh, 10, 10)
+        love.graphics.setLineWidth(1)
+
+        -- Header Banner Title
+        love.graphics.setFont(Fonts.get(20))
         if Gameplay.victory then
-            love.graphics.setColor(0.2, 1, 0.4)
-            love.graphics.printf("VICTORY!", ox, oy + 12, ow, "center")
+            love.graphics.setColor(0.2, 1.0, 0.45)
+            love.graphics.printf("🏆 VICTORY!", mx, my + 16, mw, "center")
         else
-            love.graphics.setColor(1, 0.25, 0.25)
-            love.graphics.printf("GAME OVER", ox, oy + 12, ow, "center")
+            love.graphics.setColor(1.0, 0.25, 0.25)
+            love.graphics.printf("💥 GAME OVER", mx, my + 16, mw, "center")
         end
-        love.graphics.setFont(love.graphics.newFont(13))
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.printf("Score: " .. Gameplay.score, ox, oy + 52, ow, "center")
-        love.graphics.setColor(0.7, 0.7, 0.8)
-        love.graphics.printf("R: Restart    ESC: Menu", ox, oy + 80, ow, "center")
+
+        -- Final Score & Line Breakdown
+        love.graphics.setFont(Fonts.get(11))
+        love.graphics.setColor(0.85, 0.90, 1.0, 0.9)
+        love.graphics.printf(string.format("Final Score: %d   •   Lines: %d", Gameplay.score, Gameplay.lines), mx, my + 54, mw, "center")
+
+        -- Interactive Prompt Buttons (1: RESTART, 2: MAIN MENU)
+        local btn_w, btn_h = 160, 44
+        local btn_y = my + 92
+
+        -- Button 1: RESTART
+        local b1_x = mx + 20
+        local is_b1_sel = (sel == 1)
+        if is_b1_sel then
+            love.graphics.setColor(0.12, 0.48, 0.35, 0.92)
+            love.graphics.rectangle("fill", b1_x, btn_y, btn_w, btn_h, 6, 6)
+            love.graphics.setColor(0.35, 0.95, 0.65)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle("line", b1_x, btn_y, btn_w, btn_h, 6, 6)
+            love.graphics.setLineWidth(1)
+            love.graphics.setColor(1, 1, 1)
+        else
+            love.graphics.setColor(0.08, 0.12, 0.20, 0.75)
+            love.graphics.rectangle("fill", b1_x, btn_y, btn_w, btn_h, 6, 6)
+            love.graphics.setColor(0.3, 0.4, 0.55)
+            love.graphics.rectangle("line", b1_x, btn_y, btn_w, btn_h, 6, 6)
+            love.graphics.setColor(0.70, 0.80, 0.90)
+        end
+        love.graphics.setFont(Fonts.get(12))
+        love.graphics.printf("🔄 RESTART", b1_x, btn_y + 5, btn_w, "center")
+        local icon_y1 = btn_y + 24
+        InputPrompts.draw_key_icon("r", b1_x + 40, icon_y1, 16)
+        love.graphics.setFont(Fonts.get(9))
+        love.graphics.setColor(0.65, 0.85, 0.75)
+        love.graphics.print("or", b1_x + 60, icon_y1 + 1)
+        InputPrompts.draw_key_icon("space", b1_x + 74, icon_y1, 16)
+
+        -- Button 2: MAIN MENU
+        local b2_x = mx + mw - btn_w - 20
+        local is_b2_sel = (sel == 2)
+        if is_b2_sel then
+            love.graphics.setColor(0.48, 0.16, 0.22, 0.92)
+            love.graphics.rectangle("fill", b2_x, btn_y, btn_w, btn_h, 6, 6)
+            love.graphics.setColor(1.0, 0.42, 0.42)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle("line", b2_x, btn_y, btn_w, btn_h, 6, 6)
+            love.graphics.setLineWidth(1)
+            love.graphics.setColor(1, 1, 1)
+        else
+            love.graphics.setColor(0.08, 0.12, 0.20, 0.75)
+            love.graphics.rectangle("fill", b2_x, btn_y, btn_w, btn_h, 6, 6)
+            love.graphics.setColor(0.3, 0.4, 0.55)
+            love.graphics.rectangle("line", b2_x, btn_y, btn_w, btn_h, 6, 6)
+            love.graphics.setColor(0.70, 0.80, 0.90)
+        end
+        love.graphics.setFont(Fonts.get(12))
+        love.graphics.printf("🏠 MAIN MENU", b2_x, btn_y + 5, btn_w, "center")
+        InputPrompts.draw_key_icon("escape", b2_x + 40, icon_y1, 16)
+        love.graphics.setFont(Fonts.get(9))
+        love.graphics.setColor(0.85, 0.65, 0.65)
+        love.graphics.print("or", b2_x + 60, icon_y1 + 1)
+        InputPrompts.draw_key_icon("m", b2_x + 74, icon_y1, 16)
+
+        -- Footer Navigation Hint with Hardware Icons
+        local fx = mx + 28
+        local fy = my + mh - 22
+        InputPrompts.draw_key_icon("left", fx, fy, 14)
+        InputPrompts.draw_key_icon("right", fx + 16, fy, 14)
+        love.graphics.setFont(Fonts.get(9))
+        love.graphics.setColor(0.55, 0.65, 0.78)
+        love.graphics.print("Select Option", fx + 34, fy + 1)
+
+        InputPrompts.draw_key_icon("return", fx + 180, fy, 14)
+        love.graphics.print("Confirm Action", fx + 198, fy + 1)
     end
 
     -- ── PRESET PRACTICE LOADER OVERLAY (ZEN MODE) ─────────────────────────
@@ -533,6 +619,38 @@ end
 
 function Gameplay:keypressed(key)
     local state_mgr = require("lib.state_mgr")
+
+    -- Intercept inputs when Game Over modal prompt is active
+    if Gameplay.game_over then
+        if key == "left" or key == "up" or key == "a" or key == "w" then
+            Gameplay.game_over_sel = 1
+            Audio.play("move")
+            return
+        elseif key == "right" or key == "down" or key == "d" or key == "s" then
+            Gameplay.game_over_sel = 2
+            Audio.play("move")
+            return
+        elseif key == "r" then
+            Gameplay.game_over_sel = 1
+            Audio.play("rotate")
+            self:enter(nil, Gameplay.mode)
+            return
+        elseif key == "m" or key == "escape" then
+            Gameplay.game_over_sel = 2
+            Audio.play("rotate")
+            state_mgr.switch_with_swoosh("title")
+            return
+        elseif key == "return" or key == "space" then
+            Audio.play("rotate")
+            if (Gameplay.game_over_sel or 1) == 1 then
+                self:enter(nil, Gameplay.mode)
+            else
+                state_mgr.switch_with_swoosh("title")
+            end
+            return
+        end
+        return
+    end
 
     -- Intercept input for Preset Loader Overlay in Zen Mode if active
     if Gameplay.mode and Gameplay.mode.handlePresetInput and Gameplay.mode.show_preset_overlay then
@@ -562,7 +680,7 @@ function Gameplay:keypressed(key)
     if Gameplay.mode and Gameplay.mode.name == "Zen" then
         if (ctrl and key == "z") or key == "u" then
             if Gameplay.mode:tryUndo(Gameplay) then return end
-        elseif (ctrl and key == "y") or key == "r" or (shift and key == "u") then
+        elseif (ctrl and key == "y") or (shift and key == "u") then
             if Gameplay.mode:tryRedo(Gameplay) then return end
         elseif key == "i" then
             Gameplay.mode:injectPiece(Gameplay, "I")
@@ -628,6 +746,33 @@ function Gameplay:keyreleased(key)
     local action = Input.keyreleased(key)
     if action == "SOFT_DROP_RELEASE" then
         Gameplay.soft_drop_active = false
+    end
+end
+
+function Gameplay:mousepressed(x, y, button)
+    if button ~= 1 then return end
+    local W = love.graphics.getWidth()
+    local H = love.graphics.getHeight()
+
+    if Gameplay.game_over then
+        local mw, mh = 380, 210
+        local mx = math.floor((W - mw) / 2)
+        local my = math.floor((H - mh) / 2)
+        local btn_w, btn_h = 160, 44
+        local btn_y = my + 92
+        local b1_x = mx + 20
+        local b2_x = mx + mw - btn_w - 20
+
+        if x >= b1_x and x <= b1_x + btn_w and y >= btn_y and y <= btn_y + btn_h then
+            Gameplay.game_over_sel = 1
+            Audio.play("rotate")
+            self:enter(nil, Gameplay.mode)
+        elseif x >= b2_x and x <= b2_x + btn_w and y >= btn_y and y <= btn_y + btn_h then
+            Gameplay.game_over_sel = 2
+            Audio.play("rotate")
+            local state_mgr = require("lib.state_mgr")
+            state_mgr.switch_with_swoosh("title")
+        end
     end
 end
 
