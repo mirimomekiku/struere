@@ -67,15 +67,32 @@ local default_data = {
         music_volume = 0.5,
         theme = "retro",
         up_mode = "rotate_cw",
-        shader_enabled = false,
-        palette_enabled = true,
-        palette_mode = 0,
-        scanlines_enabled = true,
+        shader_enabled = true,
         crt_enabled = true,
+        curvature = 3.5,
+        chromatic_enabled = true,
+        chromatic_idx = 3,
+        pixel_matrix_enabled = false,
+        pixel_size_idx = 4,
+        matrix_grid = 0.5,
+        motion_blur_enabled = false,
+        motion_blur_strength = 0.75,
+        noise_enabled = false,
+        noise_intensity = 0.25,
+        phosphor_enabled = false,
+        phosphor_decay = 0.85,
+        jitter_enabled = false,
+        jitter_idx = 3,
+        vhs_enabled = false,
+        vhs_intensity = 0.4,
+        scanlines_enabled = true,
+        scanline_intensity = 0.3,
         bloom_enabled = true,
+        bloom_strength = 0.5,
+        palette_enabled = false,
+        palette_mode = 0,
         ntsc_enabled = false,
         resolution_idx = 3,
-        block_style = "classic",
         cpu_difficulty = "medium",
     },
     controls = "",
@@ -145,7 +162,7 @@ function Save.apply_all_settings()
 
     local s = Save.data.settings or {}
 
-    -- Audio (save stores master_volume, audio module uses setMasterVolume API)
+    -- Audio
     if s.master_volume ~= nil then Audio.setMasterVolume(s.master_volume) end
     if s.sfx_volume ~= nil    then Audio.setSFXVolume(s.sfx_volume)    end
     if s.music_volume ~= nil  then Audio.setMusicVolume(s.music_volume)  end
@@ -157,13 +174,57 @@ function Save.apply_all_settings()
     Input.apply_up_button_mode(s.up_mode or "rotate_cw")
 
     -- Shaders
-    ShaderManager.enabled         = s.shader_enabled ~= false
-    ShaderManager.palette_enabled = s.palette_enabled ~= false
-    ShaderManager.palette_mode    = s.palette_mode or 0
-    ShaderManager.scanlines_enabled = s.scanlines_enabled ~= false
-    ShaderManager.crt_enabled     = s.crt_enabled ~= false
-    ShaderManager.bloom_enabled   = s.bloom_enabled ~= false
-    ShaderManager.ntsc_enabled    = s.ntsc_enabled == true
+    if s.shader_enabled ~= nil         then ShaderManager.enabled = (s.shader_enabled == true) end
+    if s.crt_enabled ~= nil            then ShaderManager.crt_enabled = (s.crt_enabled == true) end
+    if s.curvature ~= nil              then ShaderManager.curvature = s.curvature end
+
+    if s.chromatic_enabled ~= nil      then ShaderManager.chromatic_enabled = (s.chromatic_enabled == true) end
+    if s.chromatic_idx ~= nil          then
+        ShaderManager.chromatic_idx = s.chromatic_idx
+        if ShaderManager.chromatic_values and ShaderManager.chromatic_values[s.chromatic_idx] then
+            ShaderManager.chromatic_strength = ShaderManager.chromatic_values[s.chromatic_idx] / 1000.0
+        end
+    end
+
+    if s.pixel_matrix_enabled ~= nil  then ShaderManager.pixel_matrix_enabled = (s.pixel_matrix_enabled == true) end
+    if s.pixel_size_idx ~= nil         then
+        ShaderManager.pixel_size_idx = s.pixel_size_idx
+        if ShaderManager.pixel_size_values and ShaderManager.pixel_size_values[s.pixel_size_idx] then
+            ShaderManager.pixel_size = ShaderManager.pixel_size_values[s.pixel_size_idx]
+        end
+    end
+    if s.matrix_grid ~= nil            then ShaderManager.matrix_grid = s.matrix_grid end
+
+    if s.motion_blur_enabled ~= nil    then ShaderManager.motion_blur_enabled = (s.motion_blur_enabled == true) end
+    if s.motion_blur_strength ~= nil   then ShaderManager.motion_blur_strength = s.motion_blur_strength end
+
+    if s.noise_enabled ~= nil          then ShaderManager.noise_enabled = (s.noise_enabled == true) end
+    if s.noise_intensity ~= nil        then ShaderManager.noise_intensity = s.noise_intensity end
+
+    if s.phosphor_enabled ~= nil       then ShaderManager.phosphor_enabled = (s.phosphor_enabled == true) end
+    if s.phosphor_decay ~= nil         then ShaderManager.phosphor_decay = s.phosphor_decay end
+
+    if s.jitter_enabled ~= nil         then ShaderManager.jitter_enabled = (s.jitter_enabled == true) end
+    if s.jitter_idx ~= nil             then
+        ShaderManager.jitter_idx = s.jitter_idx
+        if ShaderManager.jitter_values and ShaderManager.jitter_values[s.jitter_idx] then
+            ShaderManager.jitter_strength = ShaderManager.jitter_values[s.jitter_idx]
+        end
+    end
+
+    if s.vhs_enabled ~= nil            then ShaderManager.vhs_enabled = (s.vhs_enabled == true) end
+    if s.vhs_intensity ~= nil          then ShaderManager.vhs_intensity = s.vhs_intensity end
+
+    if s.scanlines_enabled ~= nil      then ShaderManager.scanlines_enabled = (s.scanlines_enabled == true) end
+    if s.scanline_intensity ~= nil     then ShaderManager.scanline_intensity = s.scanline_intensity end
+
+    if s.bloom_enabled ~= nil          then ShaderManager.bloom_enabled = (s.bloom_enabled == true) end
+    if s.bloom_strength ~= nil         then ShaderManager.bloom_strength = s.bloom_strength end
+
+    if s.palette_enabled ~= nil        then ShaderManager.palette_enabled = (s.palette_enabled == true) end
+    if s.palette_mode ~= nil           then ShaderManager.palette_mode = s.palette_mode end
+
+    if s.ntsc_enabled ~= nil           then ShaderManager.ntsc_enabled = (s.ntsc_enabled == true) end
 
     -- Resolution
     local res_idx = s.resolution_idx or 3
@@ -176,13 +237,6 @@ function Save.apply_all_settings()
         shack:setDimensions(r.w, r.h)
     end
     constants.recompute_layout()
-
-    -- Block style
-    local BlockStyles = require("lib.block_styles")
-    if s.block_style and s.block_style ~= "classic" then
-        BlockStyles.current_key = s.block_style
-        Themes.current.block_style = "sprite"
-    end
 end
 
 function Save.saveActiveRun(run_state)
@@ -254,7 +308,12 @@ function Save.updateSprintBest(lines, time)
 end
 
 function Save.updateSettings(settings)
-    Save.set("settings", settings)
+    if type(settings) == "table" then
+        if not Save.data.settings then Save.data.settings = {} end
+        for k, v in pairs(settings) do
+            Save.data.settings[k] = v
+        end
+    end
     Save.save()
 end
 
@@ -350,6 +409,20 @@ function Save.record_game_end(mode_key, score, lines, level, time_spent, extra)
         z.total_time = (z.total_time or 0) + (time_spent or 0)
         z.total_lines = (z.total_lines or 0) + (lines or 0)
         s.zen = z
+    end
+
+    if extra then
+        if extra.pps and extra.pps > 0 then
+            s.best_pps = math.max(s.best_pps or 0, extra.pps)
+        end
+        if extra.kpp and extra.kpp > 0 and (extra.pieces or 0) >= 5 then
+            if not s.best_kpp or extra.kpp < s.best_kpp then
+                s.best_kpp = extra.kpp
+            end
+        end
+        if extra.apm and extra.apm > 0 then
+            s.best_apm = math.max(s.best_apm or 0, extra.apm)
+        end
     end
 
     Save.data.stats = s

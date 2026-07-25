@@ -50,10 +50,30 @@ Settings.gp_rand_keys       = {"7bag","classic","gameboy","8bag","tgm1","tgm2","
 Settings.gp_rand_names      = {"7-Bag","Classic","Game Boy","8-Bag","TGM1","TGM2","TGM3"}
 Settings.gp_rand_idx        = 1
 Settings.gp_srs             = true
-Settings.gp_softdrop_keys   = {"slow","normal","fast","instant"}
-Settings.gp_softdrop_labels = {"Slow","Normal","Fast","Instant"}
+Settings.gp_softdrop_keys   = {"1x","5x","10x","20x","instant"}
+Settings.gp_softdrop_labels = {"1x","5x","10x","20x","Instant"}
 Settings.gp_softdrop_idx    = 2
+Settings.gp_dcd_values      = {0, 1, 2, 3, 4}
+Settings.gp_dcd_labels      = {"Off", "1 Frame", "2 Frames", "3 Frames", "4 Frames"}
+Settings.gp_dcd_idx         = 1
 Settings.gp_ghost           = true
+
+Settings.bgm_pack_keys      = {"chiptune", "synthwave", "classical"}
+Settings.bgm_pack_labels    = {"Chiptune (8-bit)", "Synthwave (80s)", "Classical (Baroque)"}
+Settings.bgm_pack_idx       = 1
+Settings.pitch_scaling      = true
+
+Settings.ghost_style_keys   = {"tint", "outline", "solid", "disabled"}
+Settings.ghost_style_labels = {"Colored Tint", "Outline Only", "Solid Translucent", "Disabled"}
+Settings.ghost_style_idx    = 1
+
+Settings.grid_opacity_values = {0.0, 0.2, 0.4, 0.6, 0.8, 1.0}
+Settings.grid_opacity_labels = {"0% (Off)", "20%", "40%", "60%", "80%", "100%"}
+Settings.grid_opacity_idx    = 4
+
+Settings.grid_pattern_keys   = {"lines", "check", "dots"}
+Settings.grid_pattern_labels = {"Grid Lines", "Checkerboard", "Subtle Dots"}
+Settings.grid_pattern_idx    = 1
 
 Settings.shader_scroll_top  = 0
 
@@ -136,10 +156,43 @@ function Settings.loadValues()
     for i, k in ipairs(Settings.gp_rand_keys) do
         if k == saved_rand then Settings.gp_rand_idx = i; break end
     end
-    local saved_sd = gp.soft_drop_speed or "normal"
+    local saved_sd = gp.soft_drop_speed or "5x"
+    if saved_sd == "normal" then saved_sd = "5x" end
+    if saved_sd == "slow" then saved_sd = "1x" end
+    if saved_sd == "fast" then saved_sd = "10x" end
     Settings.gp_softdrop_idx = 2
     for i, k in ipairs(Settings.gp_softdrop_keys) do
         if k == saved_sd then Settings.gp_softdrop_idx = i; break end
+    end
+    local saved_dcd = gp.dcd_frames or 0
+    Settings.gp_dcd_idx = 1
+    for i, v in ipairs(Settings.gp_dcd_values) do
+        if v == saved_dcd then Settings.gp_dcd_idx = i; break end
+    end
+
+    local saved_bgm = gp.bgm_pack or "chiptune"
+    Settings.bgm_pack_idx = 1
+    for i, k in ipairs(Settings.bgm_pack_keys) do
+        if k == saved_bgm then Settings.bgm_pack_idx = i; break end
+    end
+    Settings.pitch_scaling = gp.pitch_scaling ~= false
+
+    local saved_gs = gp.ghost_style or "tint"
+    Settings.ghost_style_idx = 1
+    for i, k in ipairs(Settings.ghost_style_keys) do
+        if k == saved_gs then Settings.ghost_style_idx = i; break end
+    end
+
+    local saved_go = gp.grid_opacity or 0.6
+    Settings.grid_opacity_idx = 4
+    for i, v in ipairs(Settings.grid_opacity_values) do
+        if math.abs(v - saved_go) < 0.05 then Settings.grid_opacity_idx = i; break end
+    end
+
+    local saved_gp = gp.grid_pattern or "lines"
+    Settings.grid_pattern_idx = 1
+    for i, k in ipairs(Settings.grid_pattern_keys) do
+        if k == saved_gp then Settings.grid_pattern_idx = i; break end
     end
 end
 
@@ -197,8 +250,16 @@ function Settings.saveValues()
     GameplayOpts.randomizer      = Settings.gp_rand_keys[Settings.gp_rand_idx]
     GameplayOpts.srs_enabled     = Settings.gp_srs
     GameplayOpts.soft_drop_speed = Settings.gp_softdrop_keys[Settings.gp_softdrop_idx]
+    GameplayOpts.dcd_frames      = Settings.gp_dcd_values[Settings.gp_dcd_idx]
     GameplayOpts.ghost_enabled   = Settings.gp_ghost
+    GameplayOpts.bgm_pack       = Settings.bgm_pack_keys[Settings.bgm_pack_idx]
+    GameplayOpts.pitch_scaling  = Settings.pitch_scaling
+    GameplayOpts.ghost_style    = Settings.ghost_style_keys[Settings.ghost_style_idx]
+    GameplayOpts.grid_opacity   = Settings.grid_opacity_values[Settings.grid_opacity_idx]
+    GameplayOpts.grid_pattern   = Settings.grid_pattern_keys[Settings.grid_pattern_idx]
     GameplayOpts.save()
+
+    Audio.playBGM(GameplayOpts.bgm_pack)
 end
 
 function Settings.get_shader_options()
@@ -524,20 +585,25 @@ local function draw_row(i, sel_i, label, val, base_x, base_y, row_w, row_h, them
 end
 
 function Settings.drawControlsTab(px, by, pw, bh, theme)
+    local InputPrompts = require("lib.input_prompts")
     local options = {
-        { label = "UP Button Behavior", val = Settings.up_mode_labels[Settings.up_modes[Settings.up_idx]] },
-        { label = "Move Left Key",      val = Input.get_key_for_action("MOVE_LEFT") },
-        { label = "Move Right Key",     val = Input.get_key_for_action("MOVE_RIGHT") },
-        { label = "Soft Drop Key",      val = Input.get_key_for_action("SOFT_DROP") },
-        { label = "Hard Drop Key",      val = Input.get_key_for_action("HARD_DROP") },
-        { label = "Rotate CW Key",      val = Input.get_key_for_action("ROTATE_CW") },
-        { label = "Rotate CCW Key",     val = Input.get_key_for_action("ROTATE_CCW") },
-        { label = "Hold Piece Key",     val = Input.get_key_for_action("HOLD") },
-        { label = "VS CPU Difficulty",  val = Settings.cpu_diff_labels[Settings.cpu_difficulties[Settings.cpu_diff_idx]] or "Medium" },
+        { label = "UP Button Behavior", val = Settings.up_mode_labels[Settings.up_modes[Settings.up_idx]], action = nil },
+        { label = "Move Left Action",   val = Input.get_key_for_action("MOVE_LEFT"), action = "MOVE_LEFT" },
+        { label = "Move Right Action",  val = Input.get_key_for_action("MOVE_RIGHT"), action = "MOVE_RIGHT" },
+        { label = "Soft Drop Action",   val = Input.get_key_for_action("SOFT_DROP"), action = "SOFT_DROP" },
+        { label = "Hard Drop Action",   val = Input.get_key_for_action("HARD_DROP"), action = "HARD_DROP" },
+        { label = "Rotate CW Action",   val = Input.get_key_for_action("ROTATE_CW"), action = "ROTATE_CW" },
+        { label = "Rotate CCW Action",  val = Input.get_key_for_action("ROTATE_CCW"), action = "ROTATE_CCW" },
+        { label = "Hold Piece Action",  val = Input.get_key_for_action("HOLD"), action = "HOLD" },
+        { label = "VS CPU Difficulty",  val = Settings.cpu_diff_labels[Settings.cpu_difficulties[Settings.cpu_diff_idx]] or "Medium", action = nil },
     }
     local rh = math.floor((bh - 20) / #options - 6)
     for i, opt in ipairs(options) do
+        local ry = by + 10 + (i - 1) * (rh + 6)
         draw_row(i, Settings.selected, opt.label, opt.val, px, by + 10, pw, rh, theme)
+        if opt.action then
+            InputPrompts.draw_action_icon(opt.action, px + pw - 180, ry + math.floor(rh / 2) - 10, 20)
+        end
     end
 end
 
@@ -572,11 +638,12 @@ end
 
 function Settings.drawAudioTab(px, by, pw, bh, theme)
     local opts = {
-        { label = "Master Volume", val = string.format("%.0f%%", (Audio.master_vol or 0.8) * 100) },
-        { label = "SFX Volume",    val = string.format("%.0f%%", (Audio.sfx_vol or 1.0) * 100) },
-        { label = "Music Volume",  val = string.format("%.0f%%", (Audio.music_vol or 0.5) * 100) },
+        { label = "Master Volume",         val = string.format("%.0f%%", (Audio.master_vol or 0.8) * 100) },
+        { label = "SFX Volume",            val = string.format("%.0f%%", (Audio.sfx_vol or 1.0) * 100) },
+        { label = "Music Volume",          val = string.format("%.0f%%", (Audio.music_vol or 0.5) * 100) },
+        { label = "Dynamic Pitch Scaling", val = Settings.pitch_scaling and "ENABLED" or "DISABLED" },
     }
-    local rh = math.floor((bh - 20) / 6 - 6)
+    local rh = math.floor((bh - 40) / #opts - 6)
     for i, opt in ipairs(opts) do
         draw_row(i, Settings.selected, opt.label, opt.val, px, by + 10, pw, rh, theme)
     end
@@ -613,31 +680,41 @@ function Settings.drawGameplayTab(px, by, pw, bh, theme)
         ["TGM3"]     = "35-roll, 6-slot history — most predictable",
     }
     local sdr_desc = {
-        ["Slow"]    = "0.15s per row",
-        ["Normal"]  = "0.05s per row (default)",
-        ["Fast"]    = "0.018s per row",
-        ["Instant"] = "Effectively instant drop",
+        ["1x"]      = "1x standard gravity drop speed",
+        ["5x"]      = "5x speed multiplier (default)",
+        ["10x"]     = "10x speed multiplier",
+        ["20x"]     = "20x ultra-fast speed multiplier",
+        ["Instant"] = "Instant drop to stack/floor",
+    }
+    local dcd_desc = {
+        ["Off"]      = "Instant direction change — no delay",
+        ["1 Frame"]  = "1 frame (16.6ms) pause on direction change",
+        ["2 Frames"] = "2 frames (33.3ms) pause on direction change",
+        ["3 Frames"] = "3 frames (50.0ms) pause on direction change",
+        ["4 Frames"] = "4 frames (66.7ms) pause on direction change",
     }
     local opts = {
         { label = "Next Queue Size",        val = tostring(Settings.gp_next_queue) .. " piece" .. (Settings.gp_next_queue > 1 and "s" or "") },
         { label = "Hold Piece (Shift)",     val = Settings.gp_hold and "ENABLED" or "DISABLED" },
         { label = "Randomizer",             val = Settings.gp_rand_names[Settings.gp_rand_idx] or "7-Bag" },
         { label = "Super Rotation System",  val = Settings.gp_srs and "ENABLED" or "DISABLED" },
-        { label = "Soft Drop Speed",        val = Settings.gp_softdrop_labels[Settings.gp_softdrop_idx] or "Normal" },
-        { label = "Ghost Piece",            val = Settings.gp_ghost and "ENABLED" or "DISABLED" },
+        { label = "Soft Drop Factor (SDF)", val = Settings.gp_softdrop_labels[Settings.gp_softdrop_idx] or "5x" },
+        { label = "DCD (DAS Cut Delay)",     val = Settings.gp_dcd_labels[Settings.gp_dcd_idx] or "Off" },
     }
 
-    local rh = math.floor((bh - 50) / #opts - 6)
+    local rh = math.floor((bh - 50) / #opts - 4)
     for i, opt in ipairs(opts) do
-        draw_row(i, Settings.selected, opt.label, opt.val, px, by + 10, pw, rh, theme)
+        draw_row(i, Settings.selected, opt.label, opt.val, px, by + 5, pw, rh, theme)
     end
 
-    local desc_y = by + 10 + #opts * (rh + 6) + 8
+    local desc_y = by + 5 + #opts * (rh + 4) + 4
     local desc
     if Settings.selected == 3 then
         desc = rand_desc[opts[3].val]
     elseif Settings.selected == 5 then
         desc = sdr_desc[opts[5].val]
+    elseif Settings.selected == 6 then
+        desc = dcd_desc[opts[6].val]
     elseif Settings.selected == 1 then
         desc = "Number of upcoming pieces shown in the NEXT panel (1—3)"
     elseif Settings.selected == 2 then
@@ -645,9 +722,6 @@ function Settings.drawGameplayTab(px, by, pw, bh, theme)
     elseif Settings.selected == 4 then
         desc = Settings.gp_srs and "Wall-kicks ON — pieces can rotate in tight spaces"
                                  or "Wall-kicks OFF — classic rotation behaviour"
-    elseif Settings.selected == 6 then
-        desc = Settings.gp_ghost and "Shadow shows where the active piece will land"
-                                   or "No ghost shadow — rely on pure judgement!"
     end
     if desc then
         love.graphics.setFont(Fonts.get(11))
@@ -677,7 +751,7 @@ function Settings:keypressed(key)
 
     local max_items = Settings.tab == 1 and 9
         or Settings.tab == 2 and #Settings.get_shader_options()
-        or Settings.tab == 3 and 3
+        or Settings.tab == 3 and 4
         or Settings.tab == 5 and 6
         or #constants.RESOLUTIONS
 
@@ -707,6 +781,7 @@ function Settings:keypressed(key)
             local shader_opts = Settings.get_shader_options()
             if shader_opts[Settings.selected] and shader_opts[Settings.selected].action then
                 shader_opts[Settings.selected].action(dir)
+                Settings.saveValues()
             end
         elseif Settings.tab == 3 then
             if Settings.selected == 1 then
@@ -715,6 +790,8 @@ function Settings:keypressed(key)
                 Audio.setSFXVolume(math.max(0, math.min(1, (Audio.sfx_vol or 1.0) + dir * 0.1)))
             elseif Settings.selected == 3 then
                 Audio.setMusicVolume(math.max(0, math.min(1, (Audio.music_vol or 0.5) + dir * 0.1)))
+            elseif Settings.selected == 4 then
+                Settings.pitch_scaling = not Settings.pitch_scaling
             end
         elseif Settings.tab == 4 then
             Settings.res_idx = Settings.selected
@@ -736,7 +813,9 @@ function Settings:keypressed(key)
                 if Settings.gp_softdrop_idx < 1 then Settings.gp_softdrop_idx = #Settings.gp_softdrop_keys end
                 if Settings.gp_softdrop_idx > #Settings.gp_softdrop_keys then Settings.gp_softdrop_idx = 1 end
             elseif Settings.selected == 6 then
-                Settings.gp_ghost = not Settings.gp_ghost
+                Settings.gp_dcd_idx = Settings.gp_dcd_idx + dir
+                if Settings.gp_dcd_idx < 1 then Settings.gp_dcd_idx = #Settings.gp_dcd_values end
+                if Settings.gp_dcd_idx > #Settings.gp_dcd_values then Settings.gp_dcd_idx = 1 end
             end
         end
     elseif key == "escape" then
