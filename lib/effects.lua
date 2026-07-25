@@ -17,6 +17,17 @@ Effects.upward_particles = {}
 Effects.popups = {}
 Effects.bg_particles = {}
 
+-- ─── Board Tilt & Shake Vector State ─────────────────────────────────────────
+Effects.board_tilt = 0          -- Angle in radians
+Effects.board_tilt_vel = 0      -- Angular velocity
+Effects.board_offset_x = 0      -- Horizontal pixel offset
+Effects.board_offset_x_vel = 0  -- Horizontal velocity
+Effects.board_offset_y = 0      -- Vertical pixel offset
+Effects.board_offset_y_vel = 0  -- Vertical velocity
+
+Effects.board_stiffness = 320   -- Dynamic spring stiffness
+Effects.board_damping = 17      -- Dynamic spring damping
+
 function Effects.init_bg_particles()
     if #Effects.bg_particles > 0 then return end
     local W = love.graphics.getWidth()
@@ -85,21 +96,52 @@ function Effects.init()
     shack:setDimensions(constants.WINDOW_WIDTH, constants.WINDOW_HEIGHT)
 
     -- Register hermes events for game polish
-    hermes:on("hard_drop", function()
-        shack:shake(8)
+    hermes:on("hard_drop", function(col, distance)
+        shack:shake(7)
         Audio.play("hard_drop")
+        Effects.apply_impact(col or 5, distance or 10, true)
     end)
 
     hermes:on("line_clear", function(count, rows)
         if count == 4 then
             shack:shake(18)
+            Effects.apply_impact(5.5, 12, true)
         else
             shack:shake(6 * count)
+            Effects.apply_impact(5.5, 4 * count, false)
         end
         if rows then
             Effects.flash_start(rows)
         end
     end)
+end
+
+-- ─── Directional Board Impact & Tilt Vector ───────────────────────────────────
+function Effects.apply_impact(col, drop_distance, is_hard_drop)
+    col = col or 5.5
+    drop_distance = drop_distance or 1
+    -- Column offset normalized from center (1 = far right +1.0, 10 = far left -1.0)
+    local norm_col = (col - 5.5) / 4.5
+    norm_col = math.max(-1.0, math.min(1.0, norm_col))
+
+    local dist_weight = math.min(2.2, 0.6 + drop_distance * 0.08)
+    local mult = is_hard_drop and 1.0 or 0.45
+
+    -- Angular tilt impulse: far-left tilts board left (- rads), far-right tilts board right (+ rads)
+    Effects.board_tilt_vel = Effects.board_tilt_vel + (norm_col * 0.14 * dist_weight * mult)
+
+    -- Vector translation displacement (horizontal & downward jolt)
+    Effects.board_offset_x_vel = Effects.board_offset_x_vel + (norm_col * 45 * dist_weight * mult)
+    Effects.board_offset_y_vel = Effects.board_offset_y_vel + (140 * dist_weight * mult)
+end
+
+function Effects.apply_board_transform(cx, cy)
+    shack:apply()
+    if math.abs(Effects.board_tilt) > 0.0001 or math.abs(Effects.board_offset_x) > 0.01 or math.abs(Effects.board_offset_y) > 0.01 then
+        love.graphics.translate(cx + Effects.board_offset_x, cy + Effects.board_offset_y)
+        love.graphics.rotate(Effects.board_tilt)
+        love.graphics.translate(-cx, -cy)
+    end
 end
 
 function Effects.shake_start(intensity, duration)
@@ -144,20 +186,30 @@ function Effects.flash_draw(board_x, board_y, cell_size)
     end
 end
 
-function Effects.spawn_popup(text, x, y, color, duration)
+-- ─── Spring Physics Text Engine ───────────────────────────────────────────────
+function Effects.spawn_popup(text, x, y, color, duration, font_size)
     table.insert(Effects.popups, {
         text = text,
         x = x,
         y = y,
-        vy = -45,
+        vy = -35,               -- upward drift
         life = duration or 1.2,
         max_life = duration or 1.2,
         color = color or {1.0, 0.85, 0.20},
+        font_size = font_size or 20,
+        -- Elastic spring interpolation properties
+        scale = 0.1,
+        scale_target = 1.0,
+        scale_vel = 15.0,
+        stiffness = 380,
+        damping = 18,
+        rotation = (math.random() - 0.5) * 0.12,
     })
 end
 
 function Effects.all_clear_burst(board_x, board_y, cell_size)
     shack:shake(25)
+    Effects.apply_impact(5.5, 15, true)
     local cx = board_x + 5 * cell_size
     local cy = board_y + 10 * cell_size
     
@@ -177,7 +229,7 @@ function Effects.all_clear_burst(board_x, board_y, cell_size)
         })
     end
 
-    Effects.spawn_popup("PERFECT CLEAR!", cx, cy - 30, {0.2, 1.0, 0.4}, 2.0)
+    Effects.spawn_popup("PERFECT CLEAR!", cx, cy - 30, {0.2, 1.0, 0.4}, 2.0, 26)
 end
 
 function Effects.particles_spawn(x, y, color, count)
@@ -243,6 +295,7 @@ function Effects.particles_update(dt)
         end
     end
 
+    -- ─── Spring physics update for Popups ─────────────────────────────────────
     for i = #Effects.popups, 1, -1 do
         local pop = Effects.popups[i]
         pop.life = pop.life - dt
@@ -250,6 +303,14 @@ function Effects.particles_update(dt)
             table.remove(Effects.popups, i)
         else
             pop.y = pop.y + pop.vy * dt
+            
+            -- Damped Spring Harmonic Oscillator
+            local displacement = pop.scale - pop.scale_target
+            local spring_force = -pop.stiffness * displacement
+            local damping_force = -pop.damping * pop.scale_vel
+            local accel = spring_force + damping_force
+            pop.scale_vel = pop.scale_vel + accel * dt
+            pop.scale = pop.scale + pop.scale_vel * dt
         end
     end
 end
@@ -270,19 +331,48 @@ function Effects.particles_draw()
         love.graphics.rectangle("fill", p.x - p.size / 4, p.y - p.size / 4, p.size / 2, p.size / 2)
     end
 
+    -- ─── Spring Text Popup Drawing ────────────────────────────────────────────
     local Fonts = require("lib.fonts")
     for _, pop in ipairs(Effects.popups) do
-        local alpha = math.min(1, pop.life / (pop.max_life * 0.3))
-        love.graphics.setFont(Fonts.get(18))
-        love.graphics.setColor(0, 0, 0, alpha * 0.8)
-        love.graphics.printf(pop.text, pop.x - 150 + 2, pop.y + 2, 300, "center")
+        local alpha = math.min(1, pop.life / (pop.max_life * 0.25))
+        love.graphics.push()
+        love.graphics.translate(pop.x, pop.y)
+        love.graphics.scale(pop.scale, pop.scale)
+        love.graphics.rotate(pop.rotation or 0)
+
+        local font = Fonts.get(pop.font_size or 20)
+        love.graphics.setFont(font)
+        local tw = font:getWidth(pop.text)
+        local th = font:getHeight()
+
+        -- Dynamic Drop Shadow
+        love.graphics.setColor(0, 0, 0, alpha * 0.85)
+        love.graphics.print(pop.text, -tw / 2 + 2, -th / 2 + 2)
+
+        -- Glowing Main Text
         love.graphics.setColor(pop.color[1], pop.color[2], pop.color[3], alpha)
-        love.graphics.printf(pop.text, pop.x - 150, pop.y, 300, "center")
+        love.graphics.print(pop.text, -tw / 2, -th / 2)
+
+        love.graphics.pop()
     end
 end
 
 function Effects.update(dt)
     shack:update(dt)
+
+    -- Spring physics update for Board Tilt & Offset Vectors
+    local tilt_accel = -Effects.board_stiffness * Effects.board_tilt - Effects.board_damping * Effects.board_tilt_vel
+    Effects.board_tilt_vel = Effects.board_tilt_vel + tilt_accel * dt
+    Effects.board_tilt = Effects.board_tilt + Effects.board_tilt_vel * dt
+
+    local ox_accel = -Effects.board_stiffness * Effects.board_offset_x - Effects.board_damping * Effects.board_offset_x_vel
+    Effects.board_offset_x_vel = Effects.board_offset_x_vel + ox_accel * dt
+    Effects.board_offset_x = Effects.board_offset_x + Effects.board_offset_x_vel * dt
+
+    local oy_accel = -Effects.board_stiffness * Effects.board_offset_y - Effects.board_damping * Effects.board_offset_y_vel
+    Effects.board_offset_y_vel = Effects.board_offset_y_vel + oy_accel * dt
+    Effects.board_offset_y = Effects.board_offset_y + Effects.board_offset_y_vel * dt
+
     Effects.flash_update(dt)
     Effects.particles_update(dt)
 end
@@ -294,6 +384,12 @@ function Effects.clear()
     Effects.upward_particles = {}
     Effects.popups = {}
     Effects.bg_particles = {}
+    Effects.board_tilt = 0
+    Effects.board_tilt_vel = 0
+    Effects.board_offset_x = 0
+    Effects.board_offset_x_vel = 0
+    Effects.board_offset_y = 0
+    Effects.board_offset_y_vel = 0
 end
 
 return Effects

@@ -177,7 +177,7 @@ function Gameplay.hard_drop()
         distance = distance + 1
     end
     Gameplay.score = Gameplay.score + distance * 2
-    hermes:emit("hard_drop")
+    hermes:emit("hard_drop", Gameplay.current_piece.col, distance)
     Save.record_piece_place(true, false)
     Gameplay.lock_piece()
 end
@@ -271,6 +271,12 @@ function Gameplay:update(dt)
     end
 
     Effects.update_background_particles(dt, Themes.current_name)
+
+    -- Freeze gameplay & countdown while Preset Loader overlay is active
+    if Gameplay.mode and Gameplay.mode.show_preset_overlay then
+        Effects.update(dt)
+        return
+    end
 
     if Gameplay.game_over then
         Effects.update(dt)
@@ -373,7 +379,9 @@ function Gameplay:draw()
     local right_x = bx + board_w + card_gap
 
     love.graphics.push()
-    Effects.apply_shake()
+    local board_cx = bx + board_w / 2
+    local board_cy = by + board_h / 2
+    Effects.apply_board_transform(board_cx, board_cy)
 
     -- ── Outer Playfield Bezel / Container Frame ──
     love.graphics.setColor(0, 0, 0, 0.5)
@@ -396,6 +404,7 @@ function Gameplay:draw()
 
     Effects.flash_draw(bx, by, cs)
     Effects.particles_draw()
+    love.graphics.pop()
 
     -- ── LEFT PANEL: HOLD ──────────────────────────────────────────────────
     love.graphics.setFont(Fonts.get(10))
@@ -491,8 +500,6 @@ function Gameplay:draw()
     InputPrompts.draw_action_icon("PAUSE", hx + 190, hy, 16)
     love.graphics.print("Pause", hx + 208, hy + 1)
 
-    love.graphics.pop()
-
     -- ── GAME OVER OVERLAY ─────────────────────────────────────────────────
     if Gameplay.game_over then
         local ox = bx + math.floor(board_w * 0.1)
@@ -517,10 +524,28 @@ function Gameplay:draw()
         love.graphics.setColor(0.7, 0.7, 0.8)
         love.graphics.printf("R: Restart    ESC: Menu", ox, oy + 80, ow, "center")
     end
+
+    -- ── PRESET PRACTICE LOADER OVERLAY (ZEN MODE) ─────────────────────────
+    if Gameplay.mode and Gameplay.mode.drawPresetOverlay then
+        Gameplay.mode:drawPresetOverlay()
+    end
 end
 
 function Gameplay:keypressed(key)
     local state_mgr = require("lib.state_mgr")
+
+    -- Intercept input for Preset Loader Overlay in Zen Mode if active
+    if Gameplay.mode and Gameplay.mode.handlePresetInput and Gameplay.mode.show_preset_overlay then
+        if Gameplay.mode:handlePresetInput(key, Gameplay) then
+            return
+        end
+    end
+
+    -- Toggle Preset Loader Overlay with P or F2 in Zen Mode
+    if (key == "p" or key == "f2") and Gameplay.mode and Gameplay.mode.togglePresetOverlay then
+        Gameplay.mode:togglePresetOverlay()
+        return
+    end
 
     -- Block player inputs during countdown (allow ESC pause)
     if Gameplay.countdown and Gameplay.countdown.active then

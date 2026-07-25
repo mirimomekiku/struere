@@ -105,6 +105,46 @@ function BaseMode:onLineClear(state, lines_cleared, rows, t_spin_type)
 
         local line_score = Scoring.calculate(lines_cleared, state.level, t_spin_type, self.back_to_back)
 
+        -- ─── Dynamic Juiced Popup Engine Triggers ────────────────────────────
+        local constants = require("lib.constants")
+        local Effects = require("lib.effects")
+        local cx = constants.BOARD_X + 5 * constants.CELL_SIZE
+        local cy = constants.BOARD_Y + 8 * constants.CELL_SIZE
+
+        if is_t_spin then
+            local label = "T-SPIN"
+            if t_spin_type == "full" then
+                if lines_cleared == 1 then label = "T-SPIN SINGLE"
+                elseif lines_cleared == 2 then label = "T-SPIN DOUBLE"
+                elseif lines_cleared == 3 then label = "T-SPIN TRIPLE"
+                end
+            elseif t_spin_type == "mini" then
+                if lines_cleared == 0 then label = "MINI T-SPIN"
+                elseif lines_cleared == 1 then label = "MINI T-SPIN SINGLE"
+                elseif lines_cleared == 2 then label = "MINI T-SPIN DOUBLE"
+                end
+            end
+            if self.back_to_back and b2b_eligible then
+                label = "B2B " .. label
+            end
+            Effects.spawn_popup(label, cx, cy, {0.95, 0.35, 0.95}, 1.4, 22)
+        elseif lines_cleared == 4 then
+            local label = self.back_to_back and "B2B TETRIS!" or "TETRIS!"
+            Effects.spawn_popup(label, cx, cy, {0.15, 0.95, 1.0}, 1.4, 24)
+        elseif lines_cleared == 3 then
+            Effects.spawn_popup("TRIPLE!", cx, cy, {0.3, 0.95, 0.4}, 1.2, 22)
+        elseif lines_cleared == 2 then
+            Effects.spawn_popup("DOUBLE!", cx, cy, {0.4, 0.8, 1.0}, 1.2, 20)
+        elseif lines_cleared == 1 then
+            Effects.spawn_popup("SINGLE!", cx, cy, {0.85, 0.85, 0.85}, 1.0, 18)
+        end
+
+        if lines_cleared > 0 and self.combo >= 1 then
+            local combo_str = string.format("%d COMBO%s!", self.combo, self.combo > 1 and "S" or "")
+            local pop_y = cy + (lines_cleared > 0 and 26 or 0)
+            Effects.spawn_popup(combo_str, cx, pop_y, {1.0, 0.55, 0.15}, 1.2, 20)
+        end
+
         if b2b_eligible then
             if self.back_to_back then
                 self.back_to_back_count = self.back_to_back_count + 1
@@ -116,8 +156,6 @@ function BaseMode:onLineClear(state, lines_cleared, rows, t_spin_type)
 
         -- All-clear bonus
         local Board = require("lib.board")
-        local constants = require("lib.constants")
-        local Effects = require("lib.effects")
         local Audio = require("lib.audio")
         local ac_bonus = 0
         if Board.is_empty(state.board) then
