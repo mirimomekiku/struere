@@ -134,15 +134,23 @@ function Input.keypressed(key)
 
     Input.keys_held[key] = true
 
+    local dcd_sec = 0
+    local ok_gp, GameplayOpts = pcall(require, "lib.gameplay_opts")
+    if ok_gp and GameplayOpts.get_dcd_seconds then
+        dcd_sec = GameplayOpts.get_dcd_seconds()
+    end
+
     local action = Input.bindings[key]
     if action == "MOVE_LEFT" then
+        local prev_dir = Input.das.direction
         Input.das.direction = -1
-        Input.das.timer = 0
+        Input.das.timer = (prev_dir ~= 0 and prev_dir ~= -1) and -dcd_sec or 0
         Input.das.arr_timer = 0
         return "MOVE_LEFT"
     elseif action == "MOVE_RIGHT" then
+        local prev_dir = Input.das.direction
         Input.das.direction = 1
-        Input.das.timer = 0
+        Input.das.timer = (prev_dir ~= 0 and prev_dir ~= 1) and -dcd_sec or 0
         Input.das.arr_timer = 0
         return "MOVE_RIGHT"
     end
@@ -153,11 +161,17 @@ end
 function Input.keyreleased(key)
     Input.keys_held[key] = nil
 
+    local dcd_sec = 0
+    local ok_gp, GameplayOpts = pcall(require, "lib.gameplay_opts")
+    if ok_gp and GameplayOpts.get_dcd_seconds then
+        dcd_sec = GameplayOpts.get_dcd_seconds()
+    end
+
     local action = Input.bindings[key]
     if action == "MOVE_LEFT" and Input.das.direction == -1 then
         if Input.is_held("MOVE_RIGHT") then
             Input.das.direction = 1
-            Input.das.timer = 0
+            Input.das.timer = -dcd_sec
             Input.das.arr_timer = 0
         else
             Input.das.direction = 0
@@ -167,7 +181,7 @@ function Input.keyreleased(key)
     elseif action == "MOVE_RIGHT" and Input.das.direction == 1 then
         if Input.is_held("MOVE_LEFT") then
             Input.das.direction = -1
-            Input.das.timer = 0
+            Input.das.timer = -dcd_sec
             Input.das.arr_timer = 0
         else
             Input.das.direction = 0
@@ -245,6 +259,75 @@ function Input.load_bindings(str)
         end
     end
     Input.apply_up_button_mode()
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- GAMEPAD / CONTROLLER ABSTRACTION ENGINE
+-- ─────────────────────────────────────────────────────────────────────────────
+local GAMEPAD_BUTTON_MAP = {
+    dpleft        = "MOVE_LEFT",
+    dpright       = "MOVE_RIGHT",
+    dpdown        = "SOFT_DROP",
+    dpup          = "HARD_DROP",
+    a             = "ROTATE_CW",
+    b             = "ROTATE_CCW",
+    x             = "ROTATE_CCW",
+    y             = "HARD_DROP",
+    leftshoulder  = "HOLD",
+    rightshoulder = "HOLD",
+    triggerleft   = "HOLD",
+    triggerright  = "HOLD",
+    start         = "PAUSE",
+    back          = "QUIT",
+}
+
+local function detect_gamepad_scheme(name)
+    name = (name or ""):lower()
+    if name:find("playstation") or name:find("ps4") or name:find("ps5") or name:find("dualshock") or name:find("dualsense") then
+        return "playstation"
+    elseif name:find("nintendo") or name:find("switch") or name:find("joy-con") or name:find("pro controller") then
+        return "switch"
+    else
+        return "xbox"
+    end
+end
+
+function Input.gamepadadded(joystick)
+    local InputPrompts = require("lib.input_prompts")
+    local name = joystick:getName()
+    local scheme = detect_gamepad_scheme(name)
+    InputPrompts.set_scheme(scheme)
+end
+
+function Input.gamepadremoved(joystick)
+    local InputPrompts = require("lib.input_prompts")
+    local joysticks = love.joystick.getJoysticks()
+    if #joysticks == 0 then
+        InputPrompts.set_scheme("keyboard")
+    else
+        InputPrompts.set_scheme(detect_gamepad_scheme(joysticks[1]:getName()))
+    end
+end
+
+function Input.gamepadpressed(joystick, button)
+    local InputPrompts = require("lib.input_prompts")
+    InputPrompts.set_scheme(detect_gamepad_scheme(joystick:getName()))
+
+    local action = GAMEPAD_BUTTON_MAP[button]
+    if action then
+        -- Map to internal key name for DAS & state compatibility
+        local key_alias = "gp_" .. button
+        Input.bindings[key_alias] = action
+        return Input.keypressed(key_alias)
+    end
+end
+
+function Input.gamepadreleased(joystick, button)
+    local action = GAMEPAD_BUTTON_MAP[button]
+    if action then
+        local key_alias = "gp_" .. button
+        return Input.keyreleased(key_alias)
+    end
 end
 
 return Input

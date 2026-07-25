@@ -78,27 +78,60 @@ local function player_spawn()
 end
 
 local function player_lock()
+    local t_spin_type = Piece.get_t_spin_status(P.board, P.current_piece, P.last_was_rotation, P.last_kick_idx)
     Board.place_piece(P.board, P.current_piece)
+    P.last_was_rotation = false
+    P.last_kick_idx = 0
     P.pieces_placed = P.pieces_placed + 1
 
     -- Clear full lines
     local cleared, cleared_rows = Board.clear_lines(P.board)
     P.lines_cleared = P.lines_cleared + cleared
     P.lines = P.lines + cleared
-    P.score = P.score + Scoring.calculate(cleared, Battle.battle_level)
+    P.score = P.score + Scoring.calculate(cleared, Battle.battle_level, t_spin_type, P.back_to_back)
+
+    if t_spin_type then
+        Audio.play("t_spin")
+        local label = "T-SPIN"
+        if t_spin_type == "full" then
+            if cleared == 1 then label = "T-SPIN SINGLE"
+            elseif cleared == 2 then label = "T-SPIN DOUBLE"
+            elseif cleared == 3 then label = "T-SPIN TRIPLE"
+            end
+        elseif t_spin_type == "mini" then
+            if cleared == 0 then label = "MINI T-SPIN"
+            elseif cleared == 1 then label = "MINI T-SPIN SINGLE"
+            elseif cleared == 2 then label = "MINI T-SPIN DOUBLE"
+            end
+        end
+        Effects.spawn_popup(label, Battle.p_board_x + 5 * Battle.cell, Battle.p_board_y + 8 * Battle.cell, {0.95, 0.35, 0.95})
+    end
+
+    local is_t_spin = (t_spin_type == "full" or t_spin_type == "mini")
+    local is_tetris = (cleared == 4)
+    local b2b_eligible = is_tetris or (is_t_spin and cleared > 0)
 
     -- Update shared battle level
-    if cleared > 0 then
-        Effects.spawn_line_clear_upward_particles(Battle.p_board_x, Battle.p_board_y, Battle.cell, cleared_rows or {}, {0, 220, 255})
-        Battle.total_lines = Battle.total_lines + cleared
-        Battle.battle_level = math.min(MAX_BATTLE_LEVEL,
-            math.floor(Battle.total_lines / 10) + 1)
-        P.combo = P.combo + 1
+    if cleared > 0 or is_t_spin then
+        if cleared > 0 then
+            Effects.spawn_line_clear_upward_particles(Battle.p_board_x, Battle.p_board_y, Battle.cell, cleared_rows or {}, {0, 220, 255})
+            Battle.total_lines = Battle.total_lines + cleared
+            Battle.battle_level = math.min(MAX_BATTLE_LEVEL,
+                math.floor(Battle.total_lines / 10) + 1)
+            P.combo = P.combo + 1
+        end
 
         -- Garbage to send
         local sent = GARBAGE_SENT[cleared] or 0
-        if P.back_to_back and cleared == 4 then sent = sent + 1 end
-        P.back_to_back = (cleared == 4)
+        if is_t_spin then sent = sent + (cleared > 0 and cleared or 1) end
+        if P.back_to_back and b2b_eligible then sent = sent + 1 end
+        
+        if b2b_eligible then
+            P.back_to_back = true
+        elseif cleared > 0 then
+            P.back_to_back = false
+        end
+
         if sent > 0 then
             Battle.cpu.pending_garbage = Battle.cpu.pending_garbage + sent
             table.insert(Battle.arrows, { dir = "right", count = sent, life = 1.2 })
@@ -106,13 +139,22 @@ local function player_lock()
         end
 
         -- Play line clear SFX
-        local sfx_names = {"clear1","clear2","clear3","tetris"}
-        Audio.play(sfx_names[math.min(cleared, 4)] or "clear1")
-
-        Effects.shake_start(4 * cleared)
+        if cleared > 0 then
+            local sfx_names = {"clear1","clear2","clear3","tetris"}
+            Audio.play(sfx_names[math.min(cleared, 4)] or "clear1")
+            Effects.shake_start(4 * cleared)
+        end
     else
         P.combo = 0
         P.back_to_back = false
+    end
+
+    -- All-clear check
+    if Board.is_empty(P.board) then
+        Effects.all_clear_burst(Battle.p_board_x, Battle.p_board_y, Battle.cell)
+        Audio.play("all_clear")
+        P.score = P.score + Scoring.ALL_CLEAR_BONUS * Battle.battle_level
+        Battle.cpu.pending_garbage = Battle.cpu.pending_garbage + 10
     end
 
     -- Receive pending garbage
@@ -250,11 +292,22 @@ function Battle:enter(previous, difficulty)
 
     Battle.countdown = Countdown.new(3.2)
     flux.to(Battle, 0.3, { alpha = 1 }):ease("quadout")
+
+    Audio.playBGM(GameplayOpts.bgm_pack)
 end
 
 function Battle:update(dt)
     flux.update(dt)
     Effects.update(dt)
+
+    if GameplayOpts.pitch_scaling then
+        local pitch = 1.0 + (Battle.battle_level - 1) * 0.02
+        Audio.setBGMPitch(pitch)
+    else
+        Audio.setBGMPitch(1.0)
+    end
+
+    Effects.update_background_particles(dt, Themes.current_name)
 
     if Battle.countdown and Battle.countdown.active then
         Battle.countdown:update(dt)
@@ -556,6 +609,7 @@ function Battle:draw()
 
     -- Background
     love.graphics.clear(0.02, 0.04, 0.10)
+    Effects.draw_background_particles(Themes.current_name)
 
     -- Subtle dot grid
     love.graphics.setColor(0.15, 0.28, 0.65, a * 0.12)
@@ -714,24 +768,34 @@ function Battle:keypressed(key)
     if action == "MOVE_LEFT" then
         if Collision.can_move(P.board, p, -1, 0) then
             p.col = p.col - 1
+            P.last_was_rotation = false
+            P.last_kick_idx = 0
             P.lock_moves = P.lock_moves + 1
             Audio.play("move")
         end
     elseif action == "MOVE_RIGHT" then
         if Collision.can_move(P.board, p, 1, 0) then
             p.col = p.col + 1
+            P.last_was_rotation = false
+            P.last_kick_idx = 0
             P.lock_moves = P.lock_moves + 1
             Audio.play("move")
         end
     elseif action == "SOFT_DROP" then
         P.soft_drop = true
     elseif action == "ROTATE_CCW" then
-        if Piece.try_rotate(P.board, p, -1) then
+        local ok, kick_idx = Piece.try_rotate(P.board, p, -1)
+        if ok then
+            P.last_was_rotation = true
+            P.last_kick_idx = kick_idx
             P.lock_moves = P.lock_moves + 1
             Audio.play("rotate")
         end
     elseif action == "ROTATE_CW" then
-        if Piece.try_rotate(P.board, p, 1) then
+        local ok, kick_idx = Piece.try_rotate(P.board, p, 1)
+        if ok then
+            P.last_was_rotation = true
+            P.last_kick_idx = kick_idx
             P.lock_moves = P.lock_moves + 1
             Audio.play("rotate")
         end

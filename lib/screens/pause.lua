@@ -91,10 +91,19 @@ function Pause:draw()
             love.graphics.printf(opt, mx + 50, y + 10, mw - 100, "center")
         end
 
+        local InputPrompts = require("lib.input_prompts")
+        local py = my + mh - 30
+        local px = mx + 20
+        InputPrompts.draw_action_icon("ROTATE_CW", px, py, 18)
         love.graphics.setFont(Fonts.get(11))
-        love.graphics.setColor(0.45, 0.52, 0.65)
-        love.graphics.printf("UP / DOWN: Select    ENTER: Confirm    ESC: Resume", mx, my + mh - 28, mw, "center")
+        love.graphics.setColor(0.7, 0.8, 0.95)
+        love.graphics.print("Confirm", px + 22, py + 2)
 
+        InputPrompts.draw_action_icon("ROTATE_CCW", px + 120, py, 18)
+        love.graphics.print("Resume", px + 142, py + 2)
+
+        InputPrompts.draw_action_icon("PAUSE", px + 240, py, 18)
+        love.graphics.print("Menu", px + 262, py + 2)
     else
         -- ── Confirmation Prompt Dialog (Score >= 1) ──
         love.graphics.setFont(Fonts.get(20))
@@ -139,9 +148,16 @@ function Pause:draw()
         love.graphics.setFont(Fonts.get(14))
         love.graphics.printf("No, Stay", b2_x, btn_y + 12, btn_w, "center")
 
+        local InputPrompts = require("lib.input_prompts")
+        local py = my + mh - 30
+        local px = mx + 60
+        InputPrompts.draw_action_icon("ROTATE_CW", px, py, 18)
         love.graphics.setFont(Fonts.get(11))
-        love.graphics.setColor(0.45, 0.52, 0.65)
-        love.graphics.printf("← →: Select    ENTER: Confirm    ESC: Cancel", mx, my + mh - 28, mw, "center")
+        love.graphics.setColor(0.7, 0.8, 0.95)
+        love.graphics.print("Confirm", px + 22, py + 2)
+
+        InputPrompts.draw_action_icon("ROTATE_CCW", px + 180, py, 18)
+        love.graphics.print("Cancel", px + 202, py + 2)
     end
 end
 
