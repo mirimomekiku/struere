@@ -69,13 +69,12 @@ local C = {
 function C.recompute_layout()
     local w = love.graphics.getWidth()
     local h = love.graphics.getHeight()
-    -- Cell size: fit 20-row board into 90% of window height
-    C.CELL_SIZE = math.floor(h * 0.9 / 20)
-    -- Center board horizontally, small top margin
+    -- Cell size: fit 20-row board + score container comfortably in window
+    C.CELL_SIZE = math.floor(h * 0.80 / 20)
     local board_w = C.GRID_COLS * C.CELL_SIZE
     local board_h = C.GRID_ROWS * C.CELL_SIZE
     C.BOARD_X = math.floor((w - board_w) / 2)
-    C.BOARD_Y = math.floor((h - board_h) / 2)
+    C.BOARD_Y = math.floor((h - board_h - 70) / 2)
     C.WINDOW_WIDTH = w
     C.WINDOW_HEIGHT = h
 end

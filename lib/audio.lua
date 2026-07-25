@@ -107,6 +107,28 @@ function Audio.newArpeggio(freqs, duration, waveform, volume)
     return love.audio.newSource(sound)
 end
 
+function Audio.newSwoosh(start_freq, end_freq, duration, volume)
+    local sample_rate = 44100
+    local samples = math.floor(sample_rate * duration)
+    local sound = love.sound.newSoundData(samples, sample_rate, 16, 1)
+    volume = volume or 0.5
+
+    local phase = 0
+    for i = 0, samples - 1 do
+        local t = i / sample_rate
+        local progress = t / duration
+        local freq = start_freq + (end_freq - start_freq) * (progress ^ 1.8)
+        phase = phase + (2 * math.pi * freq / sample_rate)
+
+        local sample = math.sin(phase) * 0.6 + (math.random() * 2 - 1) * 0.4 * (1 - progress)
+        local fade = math.sin(progress * math.pi)
+
+        sound:setSample(i, sample * volume * fade)
+    end
+
+    return love.audio.newSource(sound)
+end
+
 function Audio.loadSFX()
     Audio.sfx.move = Audio.newSFX(200, 0.05, "sine", 0.3)
     Audio.sfx.rotate = Audio.newSFX(400, 0.08, "sine", 0.4)
@@ -119,6 +141,7 @@ function Audio.loadSFX()
     Audio.sfx.tetris = Audio.newArpeggio({440, 554, 659, 880}, 0.35, "sine", 0.6)
     Audio.sfx.game_over = Audio.newSFX(220, 0.6, "saw", 0.5)
     Audio.sfx.victory = Audio.newChord({523, 659, 784, 1047}, 0.5, "sine", 0.6)
+    Audio.sfx.swoosh = Audio.newSwoosh(750, 120, 0.25, 0.55)
 end
 
 function Audio.play(name)

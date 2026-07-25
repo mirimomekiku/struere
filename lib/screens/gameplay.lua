@@ -17,6 +17,7 @@ local flux = require("lib.vendor.flux")
 local hermes = require("lib.vendor.hermes")
 local GameplayOpts = require("lib.gameplay_opts")
 local Fonts = require("lib.fonts")
+local Countdown = require("lib.countdown")
 
 local Gameplay = {}
 
@@ -24,6 +25,7 @@ Gameplay.board = nil
 Gameplay.current_piece = nil
 Gameplay.randomizer = nil
 Gameplay.score = 0
+Gameplay.displayed_score = 0
 Gameplay.lines = 0
 Gameplay.level = 1
 Gameplay.drop_timer = 0
@@ -35,6 +37,7 @@ Gameplay.victory = false
 Gameplay.soft_drop_active = false
 Gameplay.mode = nil
 Gameplay.theme_name = "Retro Arcade"
+Gameplay.countdown = nil
 
 function Gameplay.spawn_piece(piece_type)
     local ptype = piece_type or Queue.pop(Gameplay.randomizer)
@@ -93,6 +96,7 @@ function Gameplay.lock_piece()
             local color = theme.colors[Gameplay.current_piece.type] or {255, 255, 255}
             Effects.particles_spawn(bx, by, color, constants.PARTICLE_COUNT)
         end
+        Effects.spawn_line_clear_upward_particles(constants.BOARD_X, constants.BOARD_Y, constants.CELL_SIZE, clear_rows, theme.colors[Gameplay.current_piece.type])
 
         if cleared == 1 then Audio.play("clear1")
         elseif cleared == 2 then Audio.play("clear2")
@@ -149,6 +153,7 @@ function Gameplay.hard_drop()
     end
     Gameplay.score = Gameplay.score + distance * 2
     hermes:emit("hard_drop")
+    Save.record_piece_place(true, false)
     Gameplay.lock_piece()
 end
 
@@ -157,6 +162,7 @@ function Gameplay.hold_piece()
     if not Queue.can_hold() then return end
     local held = Queue.hold_piece(Gameplay.current_piece.type)
     Audio.play("hold")
+    Save.record_piece_place(false, true)
     if held then
         Gameplay.spawn_piece(held)
     else
@@ -167,28 +173,22 @@ end
 function Gameplay.saveScore()
     if not Gameplay.mode then return end
     local mode_name = Gameplay.mode.name:lower()
-    if mode_name == "marathon" then
-        Save.updateHighScore("marathon", {
-            score = Gameplay.score,
-            level = Gameplay.level,
-            lines = Gameplay.lines,
-            date = os.date("%Y-%m-%d"),
-        })
-    elseif mode_name == "blitz" then
-        Save.updateHighScore("blitz", {
-            score = Gameplay.score,
-            pieces = Gameplay.mode.pieces_placed or 0,
-            date = os.date("%Y-%m-%d"),
-        })
-    elseif mode_name == "sprint" then
-        Save.updateHighScore("sprint", {
-            score = Gameplay.score,
-            time = Gameplay.mode.timer or 0,
-            date = os.date("%Y-%m-%d"),
-        })
-        if Gameplay.victory then
-            Save.updateSprintBest(Gameplay.mode.line_goal or 40, Gameplay.mode.timer or 0)
-        end
+    local pps = Gameplay.mode.getPPS and Gameplay.mode:getPPS() or 0
+    local pieces = Gameplay.mode.pieces_placed or 0
+    Save.record_game_end(mode_name, Gameplay.score, Gameplay.lines, Gameplay.level, Gameplay.mode.timer or 0, {
+        victory = Gameplay.victory,
+        pps = pps,
+        pieces = pieces,
+    })
+end
+
+function Gameplay.update_score_rolling(dt)
+    if Gameplay.displayed_score < Gameplay.score then
+        local diff = Gameplay.score - Gameplay.displayed_score
+        local speed = math.max(1, math.ceil(diff * math.min(1, dt * 14)))
+        Gameplay.displayed_score = math.min(Gameplay.score, Gameplay.displayed_score + speed)
+    elseif Gameplay.displayed_score > Gameplay.score then
+        Gameplay.displayed_score = Gameplay.score
     end
 end
 
@@ -202,6 +202,7 @@ function Gameplay:enter(previous, mode_override)
     Gameplay.board = Board.new()
     Gameplay.randomizer = Randomizer.new()
     Gameplay.score = 0
+    Gameplay.displayed_score = 0
     Gameplay.lines = 0
     Gameplay.level = 1
     Gameplay.game_over = false
@@ -211,6 +212,7 @@ function Gameplay:enter(previous, mode_override)
     Gameplay.lock_timer = 0
     Gameplay.lock_moves = 0
     Gameplay.is_grounded = false
+    Gameplay.countdown = Countdown.new(3.2)
     Effects.clear()
     Queue.init(Gameplay.randomizer, math.max(1, GameplayOpts.next_queue_size))
 
@@ -224,6 +226,8 @@ function Gameplay:enter(previous, mode_override)
 end
 
 function Gameplay:update(dt)
+    Gameplay.update_score_rolling(dt)
+
     if Gameplay.game_over then
         Effects.update(dt)
         return
@@ -231,6 +235,12 @@ function Gameplay:update(dt)
 
     tick.update(dt)
     flux.update(dt)
+
+    if Gameplay.countdown and Gameplay.countdown.active then
+        Gameplay.countdown:update(dt)
+        Effects.update(dt)
+        return
+    end
 
     local fired_actions = Input.update(dt)
     for _, action in ipairs(fired_actions) do
@@ -287,8 +297,11 @@ end
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- DRAW – centered layout
+-- ─────────────────────────────────────────────────────────────────────────────
+-- DRAW – compact Arcade / PPT style layout
 -- Left panel: HOLD
 -- Center: Board + grid
+-- Below board: Score banner
 -- Right panel: NEXT queue + stats
 -- ─────────────────────────────────────────────────────────────────────────────
 function Gameplay:draw()
@@ -304,20 +317,26 @@ function Gameplay:draw()
     local board_w = constants.GRID_COLS * cs
     local board_h = constants.GRID_ROWS * cs
 
-    local panel_w = math.max(cs * 5, 120)
-    local panel_margin = math.floor(cs * 0.6)
+    -- Compact container dimensions (wraps pieces tightly with padding)
+    local mini = math.floor(cs * 0.65)
+    local card_w = math.floor(cs * 3.4)  -- tight fit (~100px at default resolution)
+    local card_gap = 10
 
     -- Left panel x (HOLD)
-    local left_x = bx - panel_w - panel_margin
+    local left_x = bx - card_w - card_gap
     -- Right panel x (NEXT + stats)
-    local right_x = bx + board_w + panel_margin
+    local right_x = bx + board_w + card_gap
 
     love.graphics.push()
     Effects.apply_shake()
 
-    -- ── Background glow behind board ──
-    love.graphics.setColor(0, 0, 0, 0.35)
-    love.graphics.rectangle("fill", bx - 2, by - 2, board_w + 4, board_h + 4, 4, 4)
+    -- ── Outer Playfield Bezel / Container Frame ──
+    love.graphics.setColor(0, 0, 0, 0.5)
+    love.graphics.rectangle("fill", bx - 4, by - 4, board_w + 8, board_h + 8, 6, 6)
+    love.graphics.setColor(theme.grid_border[1], theme.grid_border[2], theme.grid_border[3], 0.7)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", bx - 4, by - 4, board_w + 8, board_h + 8, 6, 6)
+    love.graphics.setLineWidth(1)
 
     Renderer.draw_grid(bx, by, constants.GRID_COLS, constants.GRID_ROWS, cs, theme)
     Renderer.draw_board(Gameplay.board, bx, by, cs, theme)
@@ -334,64 +353,88 @@ function Gameplay:draw()
     Effects.particles_draw()
 
     -- ── LEFT PANEL: HOLD ──────────────────────────────────────────────────
-    love.graphics.setFont(love.graphics.newFont(12))
+    love.graphics.setFont(Fonts.get(10))
     love.graphics.setColor(0.7, 0.7, 0.8)
-    love.graphics.printf("HOLD", left_x, by, panel_w, "center")
+    love.graphics.printf("HOLD", left_x, by, card_w, "center")
 
-    local hold_box_h = math.floor(cs * 3.5)
+    local hold_box_h = math.floor(cs * 2.8)
+    local hold_box_y = by + 16
     love.graphics.setColor(0, 0, 0, 0.5)
-    love.graphics.rectangle("fill", left_x, by + 18, panel_w, hold_box_h, 6, 6)
-    love.graphics.setColor(theme.grid_border[1], theme.grid_border[2], theme.grid_border[3], 0.8)
-    love.graphics.rectangle("line", left_x, by + 18, panel_w, hold_box_h, 6, 6)
+    love.graphics.rectangle("fill", left_x, hold_box_y, card_w, hold_box_h, 6, 6)
+    love.graphics.setColor(theme.grid_border[1], theme.grid_border[2], theme.grid_border[3], 0.7)
+    love.graphics.rectangle("line", left_x, hold_box_y, card_w, hold_box_h, 6, 6)
 
     if Queue.hold then
         local alpha = Queue.hold_used and 0.35 or 1.0
         love.graphics.setColor(1, 1, 1, alpha)
-        Renderer.draw_mini_piece(Queue.hold, left_x + 4, by + 22, math.floor(cs * 0.7), theme)
+        Renderer.draw_mini_piece(Queue.hold, left_x, hold_box_y, mini, theme, card_w, hold_box_h)
     end
 
-    -- ── RIGHT PANEL: NEXT + STATS ─────────────────────────────────────────
-    love.graphics.setFont(love.graphics.newFont(12))
+    -- ── RIGHT PANEL: NEXT ─────────────────────────────────────────────────
+    love.graphics.setFont(Fonts.get(10))
     love.graphics.setColor(0.7, 0.7, 0.8)
-    love.graphics.printf("NEXT", right_x, by, panel_w, "center")
+    love.graphics.printf("NEXT", right_x, by, card_w, "center")
 
-    local mini = math.floor(cs * 0.65)
+    local next_box_h = math.floor(cs * 2.3)
     local show_next = math.max(1, math.min(GameplayOpts.next_queue_size, #Queue.next_queue))
     for i = 1, show_next do
-        local y_off = by + 18 + (i - 1) * (mini * 3 + 8)
-        love.graphics.setColor(0, 0, 0, 0.4)
-        love.graphics.rectangle("fill", right_x, y_off, panel_w, mini * 3, 6, 6)
+        local y_off = by + 16 + (i - 1) * (next_box_h + 6)
+        love.graphics.setColor(0, 0, 0, 0.45)
+        love.graphics.rectangle("fill", right_x, y_off, card_w, next_box_h, 6, 6)
         love.graphics.setColor(theme.grid_border[1], theme.grid_border[2], theme.grid_border[3], 0.7)
-        love.graphics.rectangle("line", right_x, y_off, panel_w, mini * 3, 6, 6)
-        Renderer.draw_mini_piece(Queue.next_queue[i], right_x + 4, y_off + 4, mini, theme)
+        love.graphics.rectangle("line", right_x, y_off, card_w, next_box_h, 6, 6)
+        Renderer.draw_mini_piece(Queue.next_queue[i], right_x, y_off, mini, theme, card_w, next_box_h)
     end
 
-    -- ── STATS ─────────────────────────────────────────────────────────────
-    local stats_y = by + 18 + 5 * (mini * 3 + 8) + 10
+    -- ── SCORE (JUST BELOW PLAYFIELD MATRIX) ───────────────────────────────
+    local score_y = by + board_h + 10
+    local score_h = 48
+    love.graphics.setColor(0, 0, 0, 0.55)
+    love.graphics.rectangle("fill", bx, score_y, board_w, score_h, 8, 8)
+    love.graphics.setColor(theme.grid_border[1], theme.grid_border[2], theme.grid_border[3], 0.8)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", bx, score_y, board_w, score_h, 8, 8)
+    love.graphics.setLineWidth(1)
+
+    love.graphics.setFont(Fonts.get(9))
+    love.graphics.setColor(0.65, 0.75, 0.88)
+    love.graphics.printf("SCORE", bx, score_y + 4, board_w, "center")
+
+    love.graphics.setFont(Fonts.get(22))
+    love.graphics.setColor(1, 0.92, 0.3)
+    local formatted_score = string.format("%08d", math.floor(Gameplay.displayed_score))
+    love.graphics.printf(formatted_score, bx, score_y + 18, board_w, "center")
+
+    -- ── COUNTDOWN OVERLAY ──────────────────────────────────────────────────
+    if Gameplay.countdown then
+        Gameplay.countdown:draw(bx + board_w / 2, by + board_h / 2)
+    end
+
+    -- ── STATS (RIGHT PANEL BELOW NEXT QUEUE) ──────────────────────────────
+    local stats_y = by + 16 + show_next * (next_box_h + 6) + 8
 
     local function stat_row(label, val, y)
         love.graphics.setColor(0, 0, 0, 0.45)
-        love.graphics.rectangle("fill", right_x, y, panel_w, 38, 6, 6)
+        love.graphics.rectangle("fill", right_x, y, card_w, 36, 6, 6)
         love.graphics.setColor(0.5, 0.6, 0.7)
-        love.graphics.setFont(love.graphics.newFont(9))
-        love.graphics.printf(label, right_x, y + 4, panel_w, "center")
+        love.graphics.setFont(Fonts.get(9))
+        love.graphics.printf(label, right_x, y + 3, card_w, "center")
         love.graphics.setColor(1, 0.9, 0.2)
-        love.graphics.setFont(love.graphics.newFont(14))
-        love.graphics.printf(tostring(val), right_x, y + 18, panel_w, "center")
+        love.graphics.setFont(Fonts.get(13))
+        love.graphics.printf(tostring(val), right_x, y + 17, card_w, "center")
     end
 
     if Gameplay.mode then
         Gameplay.mode:drawHUD(Gameplay, right_x, stats_y)
     else
-        stat_row("SCORE", Gameplay.score, stats_y)
-        stat_row("LEVEL", Gameplay.level, stats_y + 46)
-        stat_row("LINES", Gameplay.lines, stats_y + 92)
+        stat_row("LEVEL", Gameplay.level, stats_y)
+        stat_row("LINES", Gameplay.lines, stats_y + 42)
     end
 
     -- ── BOTTOM HINT ──────────────────────────────────────────────────────
     love.graphics.setFont(Fonts.get(10))
     love.graphics.setColor(0.4, 0.4, 0.5)
-    love.graphics.printf("P: Pause  ESC: Menu", 0, H - 18, W, "center")
+    love.graphics.printf("ESC: Pause", 0, H - 18, W, "center")
 
     love.graphics.pop()
 
@@ -423,10 +466,30 @@ end
 
 function Gameplay:keypressed(key)
     local state_mgr = require("lib.state_mgr")
+
+    -- Block player inputs during countdown (allow ESC pause)
+    if Gameplay.countdown and Gameplay.countdown.active then
+        if key == "escape" then
+            state_mgr.push("pause")
+        end
+        return
+    end
+
+    -- Check for Undo (Ctrl+Z or U)
+    local ctrl = love.keyboard.isDown("lctrl", "rctrl", "lgui", "rgui")
+    if (ctrl and key == "z") or key == "u" then
+        if Gameplay.mode and Gameplay.mode.tryUndo then
+            if Gameplay.mode:tryUndo(Gameplay) then
+                Audio.play("hold")
+                return
+            end
+        end
+    end
+
     local action = Input.keypressed(key)
 
-    if action == "QUIT" or key == "escape" then
-        state_mgr.switch("title")
+    if action == "PAUSE" or key == "escape" then
+        state_mgr.push("pause")
     elseif action == "RESTART" and Gameplay.game_over then
         self:enter(nil, Gameplay.mode)
     elseif action == "MOVE_LEFT" then
@@ -449,13 +512,6 @@ function Gameplay:keypressed(key)
         end
     elseif action == "HOLD" then
         Gameplay.hold_piece()
-    elseif key == "u" then
-        -- Undo (Zen mode or any mode that supports it)
-        if Gameplay.mode and Gameplay.mode.tryUndo then
-            if Gameplay.mode:tryUndo(Gameplay) then
-                Audio.play("hold")
-            end
-        end
     elseif action == "PAUSE" then
         state_mgr.push("pause")
     end

@@ -42,45 +42,37 @@ function Zen:onStart(state)
 end
 
 function Zen:drawHUD(state, x, y)
-    local W = love.graphics.getWidth()
-    local w = W - x - 16
-    local teal = {0.15, 0.85, 0.75}
+    local constants = require("lib.constants")
+    local cs = constants.CELL_SIZE
+    local w = math.min(love.graphics.getWidth() - x - 16, math.floor(cs * 3.4))
 
-    self:drawStatRow("SCORE", state.score, x, y, w)
-    self:drawStatRow("LINES", state.lines, x, y + 46, w)
+    self:drawStatRow("LEVEL", state.level, x, y, w)
+    self:drawStatRow("LINES", state.lines, x, y + 42, w)
 
     love.graphics.setColor(0, 0, 0, 0.45)
-    love.graphics.rectangle("fill", x, y + 92, w, 38, 6, 6)
+    love.graphics.rectangle("fill", x, y + 84, w, 36, 6, 6)
     love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.25, 0.75, 0.65, 0.85)
-    love.graphics.printf("TIME", x, y + 96, w, "center")
-    love.graphics.setFont(Fonts.get(14))
+    love.graphics.printf("TIME", x, y + 87, w, "center")
+    love.graphics.setFont(Fonts.get(13))
     love.graphics.setColor(0.15, 0.95, 0.80)
-    love.graphics.printf(self:getTimeFormatted(), x, y + 110, w, "center")
+    love.graphics.printf(self:getTimeFormatted(), x, y + 101, w, "center")
 
     -- Undo indicator
-    local undo_y = y + 140
-    love.graphics.setColor(0, 0, 0, 0.4)
-    love.graphics.rectangle("fill", x, undo_y, w, 30, 6, 6)
-    love.graphics.setFont(Fonts.get(10))
+    local undo_y = y + 126
+    love.graphics.setColor(0, 0, 0, 0.45)
+    love.graphics.rectangle("fill", x, undo_y, w, 32, 6, 6)
+    love.graphics.setFont(Fonts.get(8))
     if self.undo_available then
         local pulse = math.sin(love.timer.getTime() * 3) * 0.2 + 0.8
         love.graphics.setColor(0.15, 0.85, 0.60, pulse)
-        love.graphics.printf("U — UNDO AVAILABLE", x, undo_y + 8, w, "center")
+        love.graphics.printf("CTRL+Z / U", x, undo_y + 3, w, "center")
+        love.graphics.printf("UNDO READY", x, undo_y + 16, w, "center")
     else
-        love.graphics.setColor(0.30, 0.35, 0.45, 0.6)
-        love.graphics.printf("U — Undo (lock piece first)", x, undo_y + 8, w, "center")
+        love.graphics.setColor(0.40, 0.45, 0.55, 0.6)
+        love.graphics.printf("CTRL+Z / U", x, undo_y + 3, w, "center")
+        love.graphics.printf("Undo", x, undo_y + 16, w, "center")
     end
-
-    -- Gravity level
-    love.graphics.setFont(Fonts.get(9))
-    love.graphics.setColor(0.12, 0.65, 0.58, 0.75)
-    love.graphics.printf(string.format("Gravity Lv.%d  ← Customise in Settings", state.level), x, undo_y + 38, w, "center")
-
-    -- Mode tag
-    love.graphics.setFont(Fonts.get(9))
-    love.graphics.setColor(0.08, 0.55, 0.50, 0.8)
-    love.graphics.printf("ZEN  ∞ INFINITE", x, undo_y + 52, w, "center")
 end
 
 return Zen

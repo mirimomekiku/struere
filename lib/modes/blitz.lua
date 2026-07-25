@@ -52,86 +52,52 @@ function Blitz:getScoringMultiplier()
 end
 
 function Blitz:drawHUD(state, x, y)
-    local W = love.graphics.getWidth()
-    local w = W - x - 16
+    local constants = require("lib.constants")
+    local cs = constants.CELL_SIZE
+    local w = math.min(love.graphics.getWidth() - x - 16, math.floor(cs * 3.4))
 
-    -- Score (big)
-    love.graphics.setColor(0, 0, 0, 0.5)
-    love.graphics.rectangle("fill", x, y, w, 52, 8, 8)
-    love.graphics.setFont(Fonts.get(9))
-    love.graphics.setColor(0.80, 0.55, 0.20, 0.85)
-    love.graphics.printf("SCORE", x, y + 4, w, "center")
-    love.graphics.setFont(Fonts.get(20))
-    love.graphics.setColor(1, 0.90, 0.25)
-    love.graphics.printf(tostring(state.score), x, y + 18, w, "center")
-
-    local row_y = y + 60
-
-    -- Countdown timer
     local time_left = math.max(0, self.time_limit - self.timer)
     local minutes = math.floor(time_left / 60)
     local seconds = time_left % 60
 
     love.graphics.setColor(0, 0, 0, 0.5)
-    love.graphics.rectangle("fill", x, row_y, w, 52, 6, 6)
+    love.graphics.rectangle("fill", x, y, w, 44, 6, 6)
     love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.80, 0.55, 0.20, 0.85)
-    love.graphics.printf("TIME LEFT", x, row_y + 4, w, "center")
+    love.graphics.printf("TIME LEFT", x, y + 3, w, "center")
 
-    -- Color urgency: green → yellow → red
     local urgency = 1 - (time_left / self.time_limit)
     local tr = math.min(1, urgency * 2)
     local tg = math.max(0, 1 - (urgency - 0.5) * 2)
 
-    love.graphics.setFont(Fonts.get(22))
+    love.graphics.setFont(Fonts.get(14))
     love.graphics.setColor(tr, tg, 0.1)
     if time_left < 10 then
-        -- Pulse when urgent
         local pulse = math.sin(love.timer.getTime() * 8) * 0.3 + 0.7
         love.graphics.setColor(1, 0, 0, pulse)
     end
-    love.graphics.printf(string.format("%02d:%05.2f", minutes, seconds), x, row_y + 16, w, "center")
-    row_y = row_y + 60
+    love.graphics.printf(string.format("%02d:%05.2f", minutes, seconds), x, y + 17, w, "center")
+
+    local row_y = y + 48
 
     -- Combo
     love.graphics.setColor(0, 0, 0, 0.45)
-    love.graphics.rectangle("fill", x, row_y, w, 38, 6, 6)
+    love.graphics.rectangle("fill", x, row_y, w, 36, 6, 6)
     love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.55, 0.65, 0.75)
-    love.graphics.printf("COMBO MULT", x, row_y + 4, w, "center")
-    love.graphics.setFont(Fonts.get(16))
+    love.graphics.printf("COMBO", x, row_y + 3, w, "center")
+    love.graphics.setFont(Fonts.get(13))
     if self.combo > 1 then
         love.graphics.setColor(1, 0.75, 0)
-        love.graphics.printf(string.format("×%.1f  COMBO ×%d", self.combo_multiplier, self.combo),
-            x, row_y + 18, w, "center")
+        love.graphics.printf(string.format("×%.1f (x%d)", self.combo_multiplier, self.combo),
+            x, row_y + 17, w, "center")
     else
         love.graphics.setColor(0.45, 0.50, 0.60)
-        love.graphics.printf("—", x, row_y + 18, w, "center")
+        love.graphics.printf("—", x, row_y + 17, w, "center")
     end
-    row_y = row_y + 46
 
-    -- Lines cleared
+    row_y = row_y + 42
     self:drawStatRow("LINES", self.lines_cleared, x, row_y, w)
-    row_y = row_y + 46
-
-    -- Back-to-back indicator
-    if self.back_to_back then
-        love.graphics.setFont(Fonts.get(10))
-        love.graphics.setColor(1, 0.55, 0.05, 0.9)
-        love.graphics.printf("🔥 BACK-TO-BACK TETRIS", x, row_y, w, "center")
-    end
-
-    -- All clears
-    if (self.all_clears or 0) > 0 then
-        love.graphics.setFont(Fonts.get(9))
-        love.graphics.setColor(0.25, 1, 0.65, 0.85)
-        love.graphics.printf(string.format("ALL CLEARS: %d", self.all_clears), x, row_y + 16, w, "center")
-    end
-
-    -- Mode tag
-    love.graphics.setFont(Fonts.get(9))
-    love.graphics.setColor(0.70, 0.40, 0.08, 0.8)
-    love.graphics.printf("BLITZ  2 MIN", x, row_y + 32, w, "center")
 end
 
 return Blitz

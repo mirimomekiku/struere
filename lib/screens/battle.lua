@@ -17,6 +17,7 @@ local flux       = require("lib.vendor.flux")
 local CPUEngine  = require("lib.cpu_engine")
 local GameplayOpts = require("lib.gameplay_opts")
 local Fonts      = require("lib.fonts")
+local Countdown  = require("lib.countdown")
 
 local Battle = {}
 
@@ -81,13 +82,14 @@ local function player_lock()
     P.pieces_placed = P.pieces_placed + 1
 
     -- Clear full lines
-    local cleared = Board.clear_lines(P.board)
+    local cleared, cleared_rows = Board.clear_lines(P.board)
     P.lines_cleared = P.lines_cleared + cleared
     P.lines = P.lines + cleared
     P.score = P.score + Scoring.calculate(cleared, Battle.battle_level)
 
     -- Update shared battle level
     if cleared > 0 then
+        Effects.spawn_line_clear_upward_particles(Battle.p_board_x, Battle.p_board_y, Battle.cell, cleared_rows or {}, {0, 220, 255})
         Battle.total_lines = Battle.total_lines + cleared
         Battle.battle_level = math.min(MAX_BATTLE_LEVEL,
             math.floor(Battle.total_lines / 10) + 1)
@@ -140,12 +142,11 @@ end
 -- ─── Save result ──────────────────────────────────────────────────────────────
 
 function Battle.save_result(player_won)
-    if player_won then
-        local rec = Save.get("high_scores", "battle") or { wins = 0 }
-        rec.wins = (rec.wins or 0) + 1
-        Save.set("high_scores", "battle", rec)
-        Save.save()
-    end
+    Save.record_game_end("battle", P.score, P.lines, Battle.battle_level, Battle.timer or 0, {
+        won = player_won,
+        sent = Battle.cpu and Battle.cpu.pending_garbage or 0,
+        recv = Battle.player_pending_garbage or 0,
+    })
 end
 
 -- ─── Layout calculation ───────────────────────────────────────────────────────
@@ -247,12 +248,19 @@ function Battle:enter(previous, difficulty)
         end
     end
 
+    Battle.countdown = Countdown.new(3.2)
     flux.to(Battle, 0.3, { alpha = 1 }):ease("quadout")
 end
 
 function Battle:update(dt)
     flux.update(dt)
     Effects.update(dt)
+
+    if Battle.countdown and Battle.countdown.active then
+        Battle.countdown:update(dt)
+        return
+    end
+
     Battle.timer = Battle.timer + dt
 
     -- Update garbage arrow lifetimes
@@ -424,25 +432,27 @@ local function draw_mini_queue(queue, hold, hold_used, x, y, cell, theme, label_
     love.graphics.setColor(0.50, 0.55, 0.65, 0.85)
     love.graphics.printf("HOLD", x, hold_y, panel_w, "center")
     hold_y = hold_y + 14
+    local hold_box_h = math.floor(mini * 2.8)
     love.graphics.setColor(0.12, 0.14, 0.22, 0.8)
-    rr(x + 6, hold_y, panel_w - 12, mini * 3 + 4, 4)
+    rr(x + 6, hold_y, panel_w - 12, hold_box_h, 4)
     if hold then
         local alpha = hold_used and 0.35 or 1.0
         love.graphics.setColor(1, 1, 1, alpha)
-        Renderer.draw_mini_piece(hold, x + 8, hold_y + 2, mini, theme)
+        Renderer.draw_mini_piece(hold, x + 6, hold_y, mini, theme, panel_w - 12, hold_box_h)
     end
 
     -- NEXT
-    local next_y = hold_y + mini * 3 + 14
+    local next_y = hold_y + hold_box_h + 14
     love.graphics.setColor(0.50, 0.55, 0.65, 0.85)
     love.graphics.printf("NEXT", x, next_y, panel_w, "center")
     next_y = next_y + 14
+    local next_box_h = math.floor(mini * 2.5)
     for i = 1, math.min(4, #queue) do
         love.graphics.setColor(0.10, 0.12, 0.20, 0.7)
-        rr(x + 6, next_y, panel_w - 12, mini * 3, 4)
+        rr(x + 6, next_y, panel_w - 12, next_box_h, 4)
         love.graphics.setColor(1, 1, 1)
-        Renderer.draw_mini_piece(queue[i], x + 8, next_y + 2, mini, theme)
-        next_y = next_y + mini * 3 + 4
+        Renderer.draw_mini_piece(queue[i], x + 6, next_y, mini, theme, panel_w - 12, next_box_h)
+        next_y = next_y + next_box_h + 4
     end
 end
 
@@ -657,10 +667,14 @@ function Battle:draw()
     love.graphics.rectangle("fill", 0, by2, W, 2)
     love.graphics.setFont(Fonts.get(10))
     love.graphics.setColor(0.40, 0.45, 0.58, a * 0.7)
-    love.graphics.printf("← → Move    Z Rotate CCW    X/Up Rotate CW    Shift Hold    Down Soft Drop    Space Hard Drop    ESC Forfeit",
+    love.graphics.printf("← → Move    Z Rotate CCW    X/Up Rotate CW    Shift Hold    Down Soft Drop    Space Hard Drop    ESC Pause",
         0, by2 + 10, W, "center")
 
     -- ── Result overlay ────────────────────────────────────────────────────────
+    if Battle.countdown then
+        Battle.countdown:draw(W / 2, H / 2)
+    end
+
     draw_result_overlay(W, H)
 end
 
@@ -669,10 +683,18 @@ end
 function Battle:keypressed(key)
     local state_mgr = require("lib.state_mgr")
 
+    -- Block player inputs during countdown (allow ESC pause)
+    if Battle.countdown and Battle.countdown.active then
+        if key == "escape" then
+            state_mgr.push("pause")
+        end
+        return
+    end
+
     if Battle.result and Battle.result_timer > 1.5 then
         if key == "return" then
             -- Replay with same difficulty
-            state_mgr.switch("battle", Battle.difficulty)
+            state_mgr.switch_with_swoosh("battle", Battle.difficulty)
         elseif key == "escape" then
             state_mgr.pop()
         end
@@ -680,46 +702,47 @@ function Battle:keypressed(key)
     end
 
     if key == "escape" then
-        state_mgr.pop()
+        state_mgr.push("pause")
         return
     end
 
     if Battle.result or not P.current_piece then return end
 
+    local action = Input.keypressed(key)
     local p  = P.current_piece
 
-    if key == "left" then
+    if action == "MOVE_LEFT" then
         if Collision.can_move(P.board, p, -1, 0) then
             p.col = p.col - 1
             P.lock_moves = P.lock_moves + 1
             Audio.play("move")
         end
-    elseif key == "right" then
+    elseif action == "MOVE_RIGHT" then
         if Collision.can_move(P.board, p, 1, 0) then
             p.col = p.col + 1
             P.lock_moves = P.lock_moves + 1
             Audio.play("move")
         end
-    elseif key == "down" then
+    elseif action == "SOFT_DROP" then
         P.soft_drop = true
-    elseif key == "z" then
+    elseif action == "ROTATE_CCW" then
         if Piece.try_rotate(P.board, p, -1) then
             P.lock_moves = P.lock_moves + 1
             Audio.play("rotate")
         end
-    elseif key == "x" or key == "up" then
+    elseif action == "ROTATE_CW" then
         if Piece.try_rotate(P.board, p, 1) then
             P.lock_moves = P.lock_moves + 1
             Audio.play("rotate")
         end
-    elseif key == "space" then
+    elseif action == "HARD_DROP" then
         -- Hard drop
         while not Collision.any_overlap(P.board, p.type, p.rotation, p.row + 1, p.col) do
             p.row = p.row + 1
         end
         player_lock()
         Audio.play("hard_drop")
-    elseif key == "lshift" or key == "rshift" or key == "c" then
+    elseif action == "HOLD" then
         -- Hold
         if GameplayOpts.hold_enabled and not P.hold_used then
             local prev_hold = P.hold
@@ -739,7 +762,8 @@ function Battle:keypressed(key)
 end
 
 function Battle:keyreleased(key)
-    if key == "down" then
+    local action = Input.keyreleased(key)
+    if action == "SOFT_DROP_RELEASE" or key == "down" then
         P.soft_drop = false
     end
 end

@@ -14,6 +14,53 @@ local default_data = {
         battle   = { wins = 0 },
     },
     sprint_bests = {},
+    stats = {
+        total_games    = 0,
+        total_score    = 0,
+        total_playtime = 0,
+        total_lines    = 0,
+        total_pieces   = 0,
+        singles        = 0,
+        doubles        = 0,
+        triples        = 0,
+        tetrises       = 0,
+        t_spins        = 0,
+        all_clears     = 0,
+        holds_used     = 0,
+        hard_drops     = 0,
+
+        marathon = {
+            top_score    = 0,
+            max_level    = 1,
+            max_lines    = 0,
+            games_played = 0,
+        },
+        sprint = {
+            best_time    = nil,
+            best_pps     = 0,
+            games_played = 0,
+            completions  = 0,
+        },
+        blitz = {
+            top_score    = 0,
+            max_pieces   = 0,
+            games_played = 0,
+        },
+        battle = {
+            wins         = 0,
+            losses       = 0,
+            win_streak   = 0,
+            best_streak  = 0,
+            garbage_sent = 0,
+            garbage_recv = 0,
+            games_played = 0,
+        },
+        zen = {
+            total_time   = 0,
+            total_lines  = 0,
+            games_played = 0,
+        },
+    },
     settings = {
         master_volume = 0.8,
         sfx_volume = 1.0,
@@ -214,6 +261,144 @@ end
 function Save.updateControls(bindings_str)
     Save.set("controls", bindings_str)
     Save.save()
+end
+
+-- ─── Stat Recording Helper Functions ─────────────────────────────────────────
+
+function Save.record_line_clear(cleared)
+    if not cleared or cleared <= 0 then return end
+    local s = Save.data.stats or {}
+    s.total_lines = (s.total_lines or 0) + cleared
+
+    if cleared == 1 then s.singles = (s.singles or 0) + 1
+    elseif cleared == 2 then s.doubles = (s.doubles or 0) + 1
+    elseif cleared == 3 then s.triples = (s.triples or 0) + 1
+    elseif cleared >= 4 then s.tetrises = (s.tetrises or 0) + 1
+    end
+    Save.data.stats = s
+    Save.save()
+end
+
+function Save.record_piece_place(is_hard_drop, is_hold)
+    local s = Save.data.stats or {}
+    s.total_pieces = (s.total_pieces or 0) + 1
+    if is_hard_drop then s.hard_drops = (s.hard_drops or 0) + 1 end
+    if is_hold then s.holds_used = (s.holds_used or 0) + 1 end
+    Save.data.stats = s
+end
+
+function Save.record_game_end(mode_key, score, lines, level, time_spent, extra)
+    local s = Save.data.stats or {}
+    s.total_games = (s.total_games or 0) + 1
+    s.total_score = (s.total_score or 0) + (score or 0)
+    s.total_playtime = (s.total_playtime or 0) + (time_spent or 0)
+
+    mode_key = (mode_key or "marathon"):lower()
+    if mode_key == "marathon" then
+        local m = s.marathon or {}
+        m.games_played = (m.games_played or 0) + 1
+        m.top_score = math.max(m.top_score or 0, score or 0)
+        m.max_level = math.max(m.max_level or 1, level or 1)
+        m.max_lines = math.max(m.max_lines or 0, lines or 0)
+        s.marathon = m
+        Save.updateHighScore("marathon", { score = score, level = level, lines = lines, date = os.date("%Y-%m-%d") })
+
+    elseif mode_key == "sprint" then
+        local sp = s.sprint or {}
+        sp.games_played = (sp.games_played or 0) + 1
+        local pps = extra and extra.pps or 0
+        sp.best_pps = math.max(sp.best_pps or 0, pps)
+        if extra and extra.victory then
+            sp.completions = (sp.completions or 0) + 1
+            local cur_best = sp.best_time
+            if not cur_best or time_spent < cur_best then
+                sp.best_time = time_spent
+            end
+            Save.updateSprintBest(lines or 40, time_spent)
+        end
+        s.sprint = sp
+
+    elseif mode_key == "blitz" then
+        local b = s.blitz or {}
+        b.games_played = (b.games_played or 0) + 1
+        b.top_score = math.max(b.top_score or 0, score or 0)
+        b.max_pieces = math.max(b.max_pieces or 0, extra and extra.pieces or 0)
+        s.blitz = b
+        Save.updateHighScore("blitz", { score = score, pieces = extra and extra.pieces or 0, date = os.date("%Y-%m-%d") })
+
+    elseif mode_key == "battle" or mode_key == "battle_ultimate" then
+        local bt = s.battle or {}
+        bt.games_played = (bt.games_played or 0) + 1
+        if extra and extra.won then
+            bt.wins = (bt.wins or 0) + 1
+            bt.win_streak = (bt.win_streak or 0) + 1
+            bt.best_streak = math.max(bt.best_streak or 0, bt.win_streak)
+        else
+            bt.losses = (bt.losses or 0) + 1
+            bt.win_streak = 0
+        end
+        bt.garbage_sent = (bt.garbage_sent or 0) + (extra and extra.sent or 0)
+        bt.garbage_recv = (bt.garbage_recv or 0) + (extra and extra.recv or 0)
+        s.battle = bt
+        local rec = Save.get("high_scores", "battle") or { wins = 0 }
+        rec.wins = bt.wins
+        Save.set("high_scores", "battle", rec)
+
+    elseif mode_key == "zen" then
+        local z = s.zen or {}
+        z.games_played = (z.games_played or 0) + 1
+        z.total_time = (z.total_time or 0) + (time_spent or 0)
+        z.total_lines = (z.total_lines or 0) + (lines or 0)
+        s.zen = z
+    end
+
+    Save.data.stats = s
+    Save.save()
+end
+
+local BELT_TIERS = {
+    { rank = "White Belt",   lines_req = 0,    color = {0.85, 0.88, 0.92} },
+    { rank = "Yellow Belt",  lines_req = 50,   color = {1.00, 0.82, 0.15} },
+    { rank = "Orange Belt",  lines_req = 150,  color = {1.00, 0.52, 0.10} },
+    { rank = "Green Belt",   lines_req = 300,  color = {0.15, 0.85, 0.40} },
+    { rank = "Blue Belt",    lines_req = 500,  color = {0.15, 0.55, 1.00} },
+    { rank = "Purple Belt",  lines_req = 800,  color = {0.75, 0.25, 0.95} },
+    { rank = "Brown Belt",   lines_req = 1200, color = {0.60, 0.38, 0.20} },
+    { rank = "Red Belt",     lines_req = 2000, color = {0.90, 0.18, 0.20} },
+    { rank = "Black Belt",   lines_req = 3500, color = {0.15, 0.15, 0.20} },
+}
+
+function Save.get_belt_info()
+    local stats = Save.data.stats or {}
+    local total_lines = stats.total_lines or 0
+
+    local current_tier = BELT_TIERS[1]
+    local next_tier = BELT_TIERS[2]
+
+    for i = #BELT_TIERS, 1, -1 do
+        if total_lines >= BELT_TIERS[i].lines_req then
+            current_tier = BELT_TIERS[i]
+            next_tier = BELT_TIERS[i + 1] or BELT_TIERS[i]
+            break
+        end
+    end
+
+    local pct = 1.0
+    if next_tier and next_tier ~= current_tier then
+        local span = next_tier.lines_req - current_tier.lines_req
+        local prog = total_lines - current_tier.lines_req
+        pct = math.min(1.0, math.max(0.0, prog / span))
+    end
+
+    return {
+        rank              = current_tier.rank,
+        color             = current_tier.color,
+        next_rank         = next_tier and next_tier.rank or "MAX RANK",
+        lines             = total_lines,
+        current_req       = current_tier.lines_req,
+        next_req          = next_tier and next_tier.lines_req or current_tier.lines_req,
+        pct               = pct,
+    }
 end
 
 return Save

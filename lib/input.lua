@@ -18,8 +18,8 @@ local DEFAULT_BINDINGS = {
     ROTATE_CCW = {"key:z", "button:b"},
     HOLD       = {"key:c", "key:lshift", "key:rshift", "button:leftshoulder"},
     THEME      = {"key:t"},
-    PAUSE      = {"key:p", "button:start"},
-    QUIT       = {"key:escape", "button:back"},
+    PAUSE      = {"key:escape", "button:start"},
+    QUIT       = {"button:back"},
     RESTART    = {"key:r"},
 }
 
@@ -62,8 +62,8 @@ function Input.get_key_for_action(action)
         ROTATE_CCW = "Z",
         HOLD = "Shift / C",
         THEME = "T",
-        PAUSE = "P",
-        QUIT = "Esc",
+        PAUSE = "Esc",
+        QUIT = "Back",
         RESTART = "R"
     }
     return key_map[action] or "Key/Button"
@@ -95,8 +95,7 @@ function Input.load()
         ["lshift"]  = "HOLD",
         ["rshift"]  = "HOLD",
         ["t"]       = "THEME",
-        ["p"]       = "PAUSE",
-        ["escape"]  = "QUIT",
+        ["escape"]  = "PAUSE",
         ["r"]       = "RESTART",
     }
     Input.apply_up_button_mode()

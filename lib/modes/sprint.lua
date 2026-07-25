@@ -25,61 +25,49 @@ function Sprint:onStart(state)
 end
 
 function Sprint:drawHUD(state, x, y)
-    local W = love.graphics.getWidth()
-    local w = W - x - 16
-    local cyan = {0.15, 0.80, 1.0}
+    local constants = require("lib.constants")
+    local cs = constants.CELL_SIZE
+    local w = math.min(love.graphics.getWidth() - x - 16, math.floor(cs * 3.4))
 
     -- Big timer (ms precision)
     love.graphics.setColor(0, 0, 0, 0.5)
-    love.graphics.rectangle("fill", x, y, w, 52, 8, 8)
+    love.graphics.rectangle("fill", x, y, w, 44, 6, 6)
 
     love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.40, 0.70, 0.90, 0.85)
-    love.graphics.printf("TIME", x, y + 4, w, "center")
+    love.graphics.printf("TIME", x, y + 3, w, "center")
 
-    love.graphics.setFont(Fonts.get(22))
+    love.graphics.setFont(Fonts.get(14))
     love.graphics.setColor(0.15, 0.90, 1.0)
     love.graphics.printf(self:getTimeFormatted(true), x, y + 16, w, "center")
 
-    -- Personal best
     if self.best_time then
-        love.graphics.setFont(Fonts.get(9))
+        love.graphics.setFont(Fonts.get(8))
         love.graphics.setColor(1, 0.85, 0.25, 0.7)
         local bt = self.best_time
-        love.graphics.printf(string.format("PB: %02d:%06.3f", math.floor(bt/60), bt%60),
-            x, y + 44, w, "center")
+        love.graphics.printf(string.format("PB: %02d:%05.2f", math.floor(bt/60), bt%60),
+            x, y + 30, w, "center")
     end
 
-    local row_y = y + 60
+    local row_y = y + 50
 
     -- Lines progress bar
     love.graphics.setColor(0, 0, 0, 0.45)
-    love.graphics.rectangle("fill", x, row_y, w, 46, 6, 6)
+    love.graphics.rectangle("fill", x, row_y, w, 40, 6, 6)
     love.graphics.setFont(Fonts.get(9))
     love.graphics.setColor(0.40, 0.70, 0.90, 0.85)
-    love.graphics.printf("LINES", x, row_y + 4, w, "center")
-    love.graphics.setFont(Fonts.get(16))
+    love.graphics.printf("LINES", x, row_y + 3, w, "center")
+    love.graphics.setFont(Fonts.get(13))
     love.graphics.setColor(0, 1, 0.7)
     love.graphics.printf(string.format("%d / %d", self.lines_cleared, self.line_goal),
-        x, row_y + 18, w, "center")
+        x, row_y + 16, w, "center")
     self:drawProgressBar(self.lines_cleared, self.line_goal,
-        x, row_y + 38, w, 6, cyan)
-
-    row_y = row_y + 54
-
-    -- PPS
-    self:drawStatRow("PPS", string.format("%.2f", self:getPPS()),
-        x, row_y, w, {0.40, 0.70, 0.90}, {1, 0.90, 0.25})
+        x, row_y + 32, w, 4, {0.15, 0.80, 1.0})
 
     row_y = row_y + 46
-
-    -- Pieces placed
+    self:drawStatRow("PPS", string.format("%.2f", self:getPPS()), x, row_y, w)
+    row_y = row_y + 42
     self:drawStatRow("PIECES", self.pieces_placed, x, row_y, w)
-
-    -- Mode tag
-    love.graphics.setFont(Fonts.get(9))
-    love.graphics.setColor(0.08, 0.55, 0.75, 0.8)
-    love.graphics.printf("SPRINT  " .. self.line_goal .. "L", x, row_y + 46, w, "center")
 end
 
 return Sprint

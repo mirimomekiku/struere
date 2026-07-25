@@ -13,6 +13,7 @@ Effects.flash = {
 }
 
 Effects.particles = {}
+Effects.upward_particles = {}
 
 function Effects.init()
     shack:setDimensions(constants.WINDOW_WIDTH, constants.WINDOW_HEIGHT)
@@ -93,6 +94,28 @@ function Effects.particles_spawn(x, y, color, count)
     end
 end
 
+function Effects.spawn_line_clear_upward_particles(board_x, board_y, cell_size, cleared_rows, color)
+    color = color or {0, 210, 255}
+    for _, row in ipairs(cleared_rows) do
+        local ry = board_y + (row - 21) * cell_size + cell_size / 2
+        local particles_per_row = 14
+        for i = 1, particles_per_row do
+            local rx = board_x + (i / (particles_per_row + 1)) * (10 * cell_size) + (math.random() * 10 - 5)
+            table.insert(Effects.upward_particles, {
+                x = rx,
+                y = ry,
+                vx = (math.random() - 0.5) * 35,
+                vy = -110 - math.random() * 110,
+                gravity = -50,
+                life = 0.45 + math.random() * 0.35,
+                max_life = 0.45 + math.random() * 0.35,
+                color = color,
+                size = 2 + math.random() * 3,
+            })
+        end
+    end
+end
+
 function Effects.particles_update(dt)
     for i = #Effects.particles, 1, -1 do
         local p = Effects.particles[i]
@@ -105,6 +128,18 @@ function Effects.particles_update(dt)
             p.vy = p.vy + 200 * dt
         end
     end
+
+    for i = #Effects.upward_particles, 1, -1 do
+        local p = Effects.upward_particles[i]
+        p.life = p.life - dt
+        if p.life <= 0 then
+            table.remove(Effects.upward_particles, i)
+        else
+            p.x = p.x + p.vx * dt
+            p.y = p.y + p.vy * dt
+            p.vy = p.vy + p.gravity * dt
+        end
+    end
 end
 
 function Effects.particles_draw()
@@ -112,6 +147,15 @@ function Effects.particles_draw()
         local alpha = p.life / p.max_life
         love.graphics.setColor(p.color[1] / 255, p.color[2] / 255, p.color[3] / 255, alpha)
         love.graphics.rectangle("fill", p.x - p.size / 2, p.y - p.size / 2, p.size, p.size)
+    end
+
+    for _, p in ipairs(Effects.upward_particles) do
+        local alpha = math.sin((p.life / p.max_life) * math.pi)
+        local r, g, b = p.color[1]/255, p.color[2]/255, p.color[3]/255
+        love.graphics.setColor(r, g, b, alpha * 0.85)
+        love.graphics.rectangle("fill", p.x - p.size / 2, p.y - p.size / 2, p.size, p.size, 1, 1)
+        love.graphics.setColor(1, 1, 1, alpha * 0.9)
+        love.graphics.rectangle("fill", p.x - p.size / 4, p.y - p.size / 4, p.size / 2, p.size / 2)
     end
 end
 
@@ -125,6 +169,8 @@ function Effects.clear()
     Effects.flash.active = false
     Effects.flash.rows = {}
     Effects.particles = {}
+    Effects.upward_particles = {}
 end
 
 return Effects
+

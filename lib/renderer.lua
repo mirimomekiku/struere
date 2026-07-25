@@ -205,20 +205,29 @@ function Renderer.draw_piece(piece, board_x, board_y, cell_size, theme)
     end
 end
 
-function Renderer.draw_mini_piece(ptype, x, y, cell_size, theme)
+function Renderer.draw_mini_piece(ptype, x, y, cell_size, theme, box_w, box_h)
     if not ptype then return end
     local cells = Piece.get_cells(ptype, 0)
     local color = theme.colors[ptype]
     -- Find bounding box to center mini piece
-    local min_c, min_r = math.huge, math.huge
+    local min_c, max_c = math.huge, -math.huge
+    local min_r, max_r = math.huge, -math.huge
     for _, cell in ipairs(cells) do
         if cell[1] < min_c then min_c = cell[1] end
+        if cell[1] > max_c then max_c = cell[1] end
         if cell[2] < min_r then min_r = cell[2] end
+        if cell[2] > max_r then max_r = cell[2] end
     end
+    local piece_w = (max_c - min_c + 1) * cell_size
+    local piece_h = (max_r - min_r + 1) * cell_size
+
+    local off_x = box_w and math.floor((box_w - piece_w) / 2) or 0
+    local off_y = box_h and math.floor((box_h - piece_h) / 2) or 0
+
     for _, cell in ipairs(cells) do
         Renderer.draw_block(
-            x + (cell[1] - min_c) * cell_size,
-            y + (cell[2] - min_r) * cell_size,
+            x + off_x + (cell[1] - min_c) * cell_size,
+            y + off_y + (cell[2] - min_r) * cell_size,
             cell_size, color, theme.block_style
         )
     end

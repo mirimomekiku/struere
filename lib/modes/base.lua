@@ -51,25 +51,29 @@ function BaseMode:beforeLock(state)
         self.undo_board  = Board.deep_copy(state.board)
         self.undo_lines  = state.lines
         self.undo_score  = state.score
+        if state.current_piece then
+            self.undo_piece_type = state.current_piece.type
+        end
     end
 end
 
 function BaseMode:tryUndo(state)
     if self.undo_board then
         local Board = require("lib.board")
+        local Piece = require("lib.piece")
         local Queue = require("lib.queue")
         local Gameplay = state  -- state IS gameplay
         Gameplay.board  = self.undo_board
         Gameplay.lines  = self.undo_lines
         Gameplay.score  = self.undo_score
         self.undo_board = nil
-        -- Respawn a piece
-        local Piece = require("lib.piece")
-        local Randomizer = require("lib.randomizer")
-        local ptype = Queue.pop(Gameplay.randomizer)
+        -- Respawn piece
+        local ptype = self.undo_piece_type or Queue.pop(Gameplay.randomizer)
         Gameplay.current_piece = Piece.new(ptype, 21, 4)
         Gameplay.is_grounded  = false
         Gameplay.lock_timer   = 0
+        Gameplay.lock_moves   = 0
+        Gameplay.drop_timer   = 0
         return true
     end
     return false
@@ -78,6 +82,9 @@ end
 function BaseMode:onLineClear(state, lines_cleared, rows)
     self.lines_cleared = self.lines_cleared + lines_cleared
     if lines_cleared > 0 then
+        local Save = require("lib.save")
+        Save.record_line_clear(lines_cleared)
+
         self.combo = self.combo + 1
         if self.combo > self.max_combo then
             self.max_combo = self.combo end
@@ -127,6 +134,8 @@ end
 
 function BaseMode:onPieceLock(state)
     self.pieces_placed = self.pieces_placed + 1
+    local Save = require("lib.save")
+    Save.record_piece_place(false, false)
 end
 
 function BaseMode:onGameOver(state)
@@ -199,11 +208,12 @@ function BaseMode:drawProgressBar(cur, total, x, y, w, h, color)
 end
 
 function BaseMode:drawHUD(state, x, y)
-    local w = love.graphics.getWidth() - x - 16
-    self:drawStatRow("SCORE",  state.score, x, y,      w)
-    self:drawStatRow("LEVEL",  state.level, x, y + 46, w)
-    self:drawStatRow("LINES",  state.lines, x, y + 92, w)
-    self:drawStatRow("TIME",   self:getTimeFormatted(), x, y + 138, w)
+    local constants = require("lib.constants")
+    local cs = constants.CELL_SIZE
+    local w = math.min(love.graphics.getWidth() - x - 16, math.floor(cs * 3.4))
+    self:drawStatRow("LEVEL",  state.level, x, y,      w)
+    self:drawStatRow("LINES",  state.lines, x, y + 42, w)
+    self:drawStatRow("TIME",   self:getTimeFormatted(), x, y + 84, w)
 end
 
 return BaseMode

@@ -1,5 +1,4 @@
 extern float curvature;
-extern float chromatic_aberration;
 
 vec2 curve(vec2 uv) {
     uv = (uv - 0.5) * 2.0;
@@ -15,14 +14,9 @@ vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) 
         return vec4(0.0, 0.0, 0.0, 1.0);
     }
 
-    float r = Texel(texture, uv + vec2(chromatic_aberration, 0.0)).r;
-    float g = Texel(texture, uv).g;
-    float b = Texel(texture, uv - vec2(chromatic_aberration, 0.0)).b;
-    vec3 base_col = vec3(r, g, b);
-
+    vec4 base_col = Texel(texture, uv);
     float vig = (16.0 * uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y));
     vig = pow(vig, 0.25);
 
-    vec3 final_color = base_col * vig;
-    return vec4(final_color, 1.0) * color;
+    return vec4(base_col.rgb * vig, base_col.a) * color;
 }
