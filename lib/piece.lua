@@ -119,16 +119,16 @@ function Piece.try_rotate(board, piece, direction)
         if not Collision.any_overlap(board, piece.type, to, piece.row, piece.col) then
             piece.rotation = to
             flux.to(piece, 0.08, { anim_col = piece.col, anim_row = piece.row }):ease("quadout")
-            return true
+            return true, 1
         end
-        return false
+        return false, 0
     end
 
     -- ── SRS enabled: full wall-kick table ────────────────────────────────────
     local kicks = Piece.get_kicks(piece.type, from, to)
 
     -- Try standard SRS kicks first
-    for _, kick in ipairs(kicks) do
+    for i, kick in ipairs(kicks) do
         local new_col = piece.col + kick[1]
         local new_row = piece.row + kick[2]
         if not Collision.any_overlap(board, piece.type, to, new_row, new_col) then
@@ -136,12 +136,12 @@ function Piece.try_rotate(board, piece, direction)
             piece.col = new_col
             piece.row = new_row
             flux.to(piece, 0.08, { anim_col = new_col, anim_row = new_row }):ease("quadout")
-            return true
+            return true, i
         end
     end
 
     -- Fallback edge-nudge: try shifting away from walls/floor
-    for _, nudge in ipairs(EDGE_NUDGES) do
+    for i, nudge in ipairs(EDGE_NUDGES) do
         local new_col = piece.col + nudge[1]
         local new_row = piece.row + nudge[2]
         if not Collision.any_overlap(board, piece.type, to, new_row, new_col) then
@@ -149,11 +149,88 @@ function Piece.try_rotate(board, piece, direction)
             piece.col = new_col
             piece.row = new_row
             flux.to(piece, 0.08, { anim_col = new_col, anim_row = new_row }):ease("quadout")
-            return true
+            return true, #kicks + i
         end
     end
 
-    return false
+    return false, 0
+end
+
+local function is_occupied(board, row, col)
+    if col < 1 or col > 10 or row > 40 then
+        return true
+    end
+    if row < 1 then
+        return false
+    end
+    local Board = require("lib.board")
+    return Board.get_cell(board, row, col) ~= nil
+end
+
+function Piece.get_t_spin_status(board, piece, last_was_rotation, last_kick_idx)
+    if not piece or piece.type ~= "T" or not last_was_rotation then
+        return nil
+    end
+
+    local rot = piece.rotation
+    local r, c = piece.row, piece.col
+    local center_r, center_c
+    local front_corners = {}
+    local back_corners = {}
+
+    if rot == 0 then
+        center_r, center_c = r, c + 1
+        front_corners = {{r + 1, c}, {r + 1, c + 2}}
+        back_corners  = {{r - 1, c}, {r - 1, c + 2}}
+    elseif rot == 1 then
+        center_r, center_c = r + 1, c
+        front_corners = {{r, c + 1}, {r + 2, c + 1}}
+        back_corners  = {{r, c - 1}, {r + 2, c - 1}}
+    elseif rot == 2 then
+        center_r, center_c = r + 1, c + 1
+        front_corners = {{r, c}, {r, c + 2}}
+        back_corners  = {{r + 2, c}, {r + 2, c + 2}}
+    elseif rot == 3 then
+        center_r, center_c = r + 1, c + 1
+        front_corners = {{r, c}, {r + 2, c}}
+        back_corners  = {{r, c + 2}, {r + 2, c + 2}}
+    end
+
+    local front_count = 0
+    for _, pt in ipairs(front_corners) do
+        if is_occupied(board, pt[1], pt[2]) then
+            front_count = front_count + 1
+        end
+    end
+
+    local back_count = 0
+    for _, pt in ipairs(back_corners) do
+        if is_occupied(board, pt[1], pt[2]) then
+            back_count = back_count + 1
+        end
+    end
+
+    local total_occupied = front_count + back_count
+    if total_occupied < 3 then
+        return nil
+    end
+
+    -- Guideline 3-Corner Rule:
+    -- If 2 front corners are occupied => Full T-Spin
+    -- If 1 front corner is occupied:
+    --   If the 5th kick (T-Spin Triple kick) was used => Full T-Spin
+    --   Otherwise => Mini T-Spin
+    if front_count == 2 then
+        return "full"
+    elseif front_count == 1 then
+        if last_kick_idx == 5 then
+            return "full"
+        else
+            return "mini"
+        end
+    else
+        return "mini"
+    end
 end
 
 function Piece.move(piece, d_row, d_col)

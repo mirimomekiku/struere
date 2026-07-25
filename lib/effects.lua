@@ -14,6 +14,72 @@ Effects.flash = {
 
 Effects.particles = {}
 Effects.upward_particles = {}
+Effects.popups = {}
+Effects.bg_particles = {}
+
+function Effects.init_bg_particles()
+    if #Effects.bg_particles > 0 then return end
+    local W = love.graphics.getWidth()
+    local H = love.graphics.getHeight()
+    for _ = 1, 35 do
+        table.insert(Effects.bg_particles, {
+            x = math.random(0, W),
+            y = math.random(0, H),
+            vx = (math.random() - 0.5) * 20,
+            vy = -math.random(10, 45),
+            size = math.random(2, 4),
+            phase = math.random() * math.pi * 2,
+            alpha = math.random(15, 45) / 100,
+        })
+    end
+end
+
+function Effects.update_bg_particles(dt, theme_name)
+    Effects.init_bg_particles()
+    local W = love.graphics.getWidth()
+    local H = love.graphics.getHeight()
+
+    for _, p in ipairs(Effects.bg_particles) do
+        p.phase = p.phase + dt * 2
+        local sway = math.sin(p.phase) * 12
+        p.x = p.x + (p.vx + sway) * dt
+        p.y = p.y + p.vy * dt
+
+        if p.y < -10 then
+            p.y = H + 10
+            p.x = math.random(0, W)
+        elseif p.x < -10 then
+            p.x = W + 10
+        elseif p.x > W + 10 then
+            p.x = -10
+        end
+    end
+end
+
+function Effects.draw_bg_particles(theme_name)
+    theme_name = theme_name or "retro"
+    local color = {0.2, 0.7, 1.0}
+
+    if theme_name == "cyberpunk" then
+        color = {0.9, 0.0, 0.7}
+    elseif theme_name == "ocean" then
+        color = {0.1, 0.6, 0.9}
+    elseif theme_name == "lava" or theme_name == "sunset" then
+        color = {1.0, 0.4, 0.1}
+    elseif theme_name == "flat" or theme_name == "pastel" then
+        color = {0.5, 0.5, 0.7}
+    elseif theme_name == "glass" then
+        color = {0.6, 0.8, 1.0}
+    end
+
+    for _, p in ipairs(Effects.bg_particles) do
+        love.graphics.setColor(color[1], color[2], color[3], p.alpha)
+        love.graphics.circle("fill", p.x, p.y, p.size)
+    end
+end
+
+Effects.update_background_particles = Effects.update_bg_particles
+Effects.draw_background_particles   = Effects.draw_bg_particles
 
 function Effects.init()
     shack:setDimensions(constants.WINDOW_WIDTH, constants.WINDOW_HEIGHT)
@@ -78,6 +144,42 @@ function Effects.flash_draw(board_x, board_y, cell_size)
     end
 end
 
+function Effects.spawn_popup(text, x, y, color, duration)
+    table.insert(Effects.popups, {
+        text = text,
+        x = x,
+        y = y,
+        vy = -45,
+        life = duration or 1.2,
+        max_life = duration or 1.2,
+        color = color or {1.0, 0.85, 0.20},
+    })
+end
+
+function Effects.all_clear_burst(board_x, board_y, cell_size)
+    shack:shake(25)
+    local cx = board_x + 5 * cell_size
+    local cy = board_y + 10 * cell_size
+    
+    -- Radial explosion particles
+    for i = 1, 60 do
+        local angle = (i / 60) * math.pi * 2
+        local speed = 120 + math.random() * 220
+        table.insert(Effects.particles, {
+            x = cx,
+            y = cy,
+            vx = math.cos(angle) * speed,
+            vy = math.sin(angle) * speed,
+            life = 0.8 + math.random() * 0.5,
+            max_life = 0.8 + math.random() * 0.5,
+            color = {0, 240, 255},
+            size = 4 + math.random() * 5,
+        })
+    end
+
+    Effects.spawn_popup("PERFECT CLEAR!", cx, cy - 30, {0.2, 1.0, 0.4}, 2.0)
+end
+
 function Effects.particles_spawn(x, y, color, count)
     count = count or constants.PARTICLE_COUNT
     for _ = 1, count do
@@ -140,6 +242,16 @@ function Effects.particles_update(dt)
             p.vy = p.vy + p.gravity * dt
         end
     end
+
+    for i = #Effects.popups, 1, -1 do
+        local pop = Effects.popups[i]
+        pop.life = pop.life - dt
+        if pop.life <= 0 then
+            table.remove(Effects.popups, i)
+        else
+            pop.y = pop.y + pop.vy * dt
+        end
+    end
 end
 
 function Effects.particles_draw()
@@ -157,6 +269,16 @@ function Effects.particles_draw()
         love.graphics.setColor(1, 1, 1, alpha * 0.9)
         love.graphics.rectangle("fill", p.x - p.size / 4, p.y - p.size / 4, p.size / 2, p.size / 2)
     end
+
+    local Fonts = require("lib.fonts")
+    for _, pop in ipairs(Effects.popups) do
+        local alpha = math.min(1, pop.life / (pop.max_life * 0.3))
+        love.graphics.setFont(Fonts.get(18))
+        love.graphics.setColor(0, 0, 0, alpha * 0.8)
+        love.graphics.printf(pop.text, pop.x - 150 + 2, pop.y + 2, 300, "center")
+        love.graphics.setColor(pop.color[1], pop.color[2], pop.color[3], alpha)
+        love.graphics.printf(pop.text, pop.x - 150, pop.y, 300, "center")
+    end
 end
 
 function Effects.update(dt)
@@ -170,7 +292,8 @@ function Effects.clear()
     Effects.flash.rows = {}
     Effects.particles = {}
     Effects.upward_particles = {}
+    Effects.popups = {}
+    Effects.bg_particles = {}
 end
 
 return Effects
-
