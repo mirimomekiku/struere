@@ -42,6 +42,8 @@ Gameplay.countdown = nil
 function Gameplay.spawn_piece(piece_type)
     local ptype = piece_type or Queue.pop(Gameplay.randomizer)
     Gameplay.current_piece = Piece.new(ptype, 21, 4)
+    Gameplay.last_was_rotation = false
+    Gameplay.last_kick_idx = 0
 
     if Collision.any_overlap(Gameplay.board, Gameplay.current_piece.type,
                              Gameplay.current_piece.rotation,
@@ -65,11 +67,15 @@ function Gameplay.spawn_piece(piece_type)
 end
 
 function Gameplay.lock_piece()
+    local t_spin_type = Piece.get_t_spin_status(Gameplay.board, Gameplay.current_piece, Gameplay.last_was_rotation, Gameplay.last_kick_idx)
+
     -- Save undo snapshot before locking
     if Gameplay.mode and Gameplay.mode.beforeLock then
         Gameplay.mode:beforeLock(Gameplay)
     end
     Board.place_piece(Gameplay.board, Gameplay.current_piece)
+    Gameplay.last_was_rotation = false
+    Gameplay.last_kick_idx = 0
 
     local clear_rows = {}
     for r = 21, 40 do
@@ -108,12 +114,29 @@ function Gameplay.lock_piece()
         Audio.play("lock")
     end
 
+    if t_spin_type then
+        Audio.play("t_spin")
+        local label = "T-SPIN"
+        if t_spin_type == "full" then
+            if cleared == 1 then label = "T-SPIN SINGLE"
+            elseif cleared == 2 then label = "T-SPIN DOUBLE"
+            elseif cleared == 3 then label = "T-SPIN TRIPLE"
+            end
+        elseif t_spin_type == "mini" then
+            if cleared == 0 then label = "MINI T-SPIN"
+            elseif cleared == 1 then label = "MINI T-SPIN SINGLE"
+            elseif cleared == 2 then label = "MINI T-SPIN DOUBLE"
+            end
+        end
+        Effects.spawn_popup(label, constants.BOARD_X + 5 * constants.CELL_SIZE, constants.BOARD_Y + 8 * constants.CELL_SIZE, {0.95, 0.35, 0.95})
+    end
+
     if Gameplay.mode then
-        Gameplay.mode:onLineClear(Gameplay, cleared, clear_rows)
+        Gameplay.mode:onLineClear(Gameplay, cleared, clear_rows, t_spin_type)
         Gameplay.mode:onPieceLock(Gameplay)
     else
         Gameplay.lines = Gameplay.lines + cleared
-        Gameplay.score = Gameplay.score + Scoring.calculate(cleared, Gameplay.level)
+        Gameplay.score = Gameplay.score + Scoring.calculate(cleared, Gameplay.level, t_spin_type, false)
         Gameplay.level = math.floor(Gameplay.lines / constants.LINES_PER_LEVEL) + 1
     end
 
@@ -131,6 +154,8 @@ end
 function Gameplay.try_move(drow, dcol)
     if Collision.can_move(Gameplay.board, Gameplay.current_piece, dcol, drow) then
         Piece.move(Gameplay.current_piece, drow, dcol)
+        Gameplay.last_was_rotation = false
+        Gameplay.last_kick_idx = 0
         Gameplay.check_post_move()
         Audio.play("move")
         return true
@@ -175,9 +200,15 @@ function Gameplay.saveScore()
     local mode_name = Gameplay.mode.name:lower()
     local pps = Gameplay.mode.getPPS and Gameplay.mode:getPPS() or 0
     local pieces = Gameplay.mode.pieces_placed or 0
+    local kpp = (Gameplay.total_inputs or 0) / math.max(1, pieces)
+    local time_mins = math.max(0.1, Gameplay.mode.timer or 1) / 60
+    local attacks = (Gameplay.mode.garbage_sent or 0) + (Gameplay.mode.lines_cleared or Gameplay.lines or 0)
+    local apm = attacks / time_mins
     Save.record_game_end(mode_name, Gameplay.score, Gameplay.lines, Gameplay.level, Gameplay.mode.timer or 0, {
         victory = Gameplay.victory,
         pps = pps,
+        kpp = kpp,
+        apm = apm,
         pieces = pieces,
     })
 end
@@ -212,6 +243,7 @@ function Gameplay:enter(previous, mode_override)
     Gameplay.lock_timer = 0
     Gameplay.lock_moves = 0
     Gameplay.is_grounded = false
+    Gameplay.total_inputs = 0
     Gameplay.countdown = Countdown.new(3.2)
     Effects.clear()
     Queue.init(Gameplay.randomizer, math.max(1, GameplayOpts.next_queue_size))
@@ -221,12 +253,24 @@ function Gameplay:enter(previous, mode_override)
         Gameplay.mode:onStart(Gameplay)
     end
 
-    Gameplay.theme_name = Themes.get().name
+    Gameplay.last_was_rotation = false
+    Gameplay.last_kick_idx = 0
     Gameplay.spawn_piece()
+
+    Audio.playBGM(GameplayOpts.bgm_pack)
 end
 
 function Gameplay:update(dt)
     Gameplay.update_score_rolling(dt)
+
+    if GameplayOpts.pitch_scaling then
+        local pitch = 1.0 + (Gameplay.level - 1) * 0.015
+        Audio.setBGMPitch(pitch)
+    else
+        Audio.setBGMPitch(1.0)
+    end
+
+    Effects.update_background_particles(dt, Themes.current_name)
 
     if Gameplay.game_over then
         Effects.update(dt)
@@ -310,6 +354,7 @@ function Gameplay:draw()
     local H = love.graphics.getHeight()
 
     love.graphics.clear(theme.background[1], theme.background[2], theme.background[3])
+    Effects.draw_background_particles(Themes.current_name)
 
     local cs = constants.CELL_SIZE
     local bx = constants.BOARD_X
@@ -431,10 +476,20 @@ function Gameplay:draw()
         stat_row("LINES", Gameplay.lines, stats_y + 42)
     end
 
-    -- ── BOTTOM HINT ──────────────────────────────────────────────────────
+    -- ── BOTTOM HINT & PROMPTS ─────────────────────────────────────────────
+    local InputPrompts = require("lib.input_prompts")
+    local hy = H - 22
+    local hx = math.floor((W - 320) / 2)
+    InputPrompts.draw_action_icon("ROTATE_CW", hx, hy, 16)
     love.graphics.setFont(Fonts.get(10))
-    love.graphics.setColor(0.4, 0.4, 0.5)
-    love.graphics.printf("ESC: Pause", 0, H - 18, W, "center")
+    love.graphics.setColor(0.6, 0.7, 0.85)
+    love.graphics.print("Rotate", hx + 18, hy + 1)
+
+    InputPrompts.draw_action_icon("HOLD", hx + 100, hy, 16)
+    love.graphics.print("Hold", hx + 118, hy + 1)
+
+    InputPrompts.draw_action_icon("PAUSE", hx + 190, hy, 16)
+    love.graphics.print("Pause", hx + 208, hy + 1)
 
     love.graphics.pop()
 
@@ -475,9 +530,23 @@ function Gameplay:keypressed(key)
         return
     end
 
-    -- Check for Undo (Ctrl+Z or U)
     local ctrl = love.keyboard.isDown("lctrl", "rctrl", "lgui", "rgui")
-    if (ctrl and key == "z") or key == "u" then
+    local shift = love.keyboard.isDown("lshift", "rshift")
+
+    -- Check for Zen Sandbox Hotkeys (Undo, Redo, Piece Injection, Board Clear)
+    if Gameplay.mode and Gameplay.mode.name == "Zen" then
+        if (ctrl and key == "z") or key == "u" then
+            if Gameplay.mode:tryUndo(Gameplay) then return end
+        elseif (ctrl and key == "y") or key == "r" or (shift and key == "u") then
+            if Gameplay.mode:tryRedo(Gameplay) then return end
+        elseif key == "i" then
+            Gameplay.mode:injectPiece(Gameplay, "I")
+            return
+        elseif key == "c" or key == "delete" or key == "backspace" then
+            Gameplay.mode:clearBoard(Gameplay)
+            return
+        end
+    elseif (ctrl and key == "z") or key == "u" then
         if Gameplay.mode and Gameplay.mode.tryUndo then
             if Gameplay.mode:tryUndo(Gameplay) then
                 Audio.play("hold")
@@ -493,24 +562,37 @@ function Gameplay:keypressed(key)
     elseif action == "RESTART" and Gameplay.game_over then
         self:enter(nil, Gameplay.mode)
     elseif action == "MOVE_LEFT" then
+        Gameplay.total_inputs = (Gameplay.total_inputs or 0) + 1
         Gameplay.try_move(0, -1)
     elseif action == "MOVE_RIGHT" then
+        Gameplay.total_inputs = (Gameplay.total_inputs or 0) + 1
         Gameplay.try_move(0, 1)
     elseif action == "SOFT_DROP" then
+        Gameplay.total_inputs = (Gameplay.total_inputs or 0) + 1
         Gameplay.soft_drop_active = true
     elseif action == "HARD_DROP" then
+        Gameplay.total_inputs = (Gameplay.total_inputs or 0) + 1
         Gameplay.hard_drop()
     elseif action == "ROTATE_CW" then
-        if Piece.try_rotate(Gameplay.board, Gameplay.current_piece, 1) then
+        Gameplay.total_inputs = (Gameplay.total_inputs or 0) + 1
+        local ok, kick_idx = Piece.try_rotate(Gameplay.board, Gameplay.current_piece, 1)
+        if ok then
+            Gameplay.last_was_rotation = true
+            Gameplay.last_kick_idx = kick_idx
             Gameplay.check_post_move()
             Audio.play("rotate")
         end
     elseif action == "ROTATE_CCW" then
-        if Piece.try_rotate(Gameplay.board, Gameplay.current_piece, -1) then
+        Gameplay.total_inputs = (Gameplay.total_inputs or 0) + 1
+        local ok, kick_idx = Piece.try_rotate(Gameplay.board, Gameplay.current_piece, -1)
+        if ok then
+            Gameplay.last_was_rotation = true
+            Gameplay.last_kick_idx = kick_idx
             Gameplay.check_post_move()
             Audio.play("rotate")
         end
     elseif action == "HOLD" then
+        Gameplay.total_inputs = (Gameplay.total_inputs or 0) + 1
         Gameplay.hold_piece()
     elseif action == "PAUSE" then
         state_mgr.push("pause")

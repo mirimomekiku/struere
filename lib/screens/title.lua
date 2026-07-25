@@ -8,7 +8,6 @@ local Save          = require("lib.save")
 local constants     = require("lib.constants")
 local Fonts         = require("lib.fonts")
 local ShaderManager = require("lib.shaders.manager")
-local BlockStyles   = require("lib.block_styles")
 
 local Title = {}
 
@@ -130,10 +129,10 @@ Title.TIPS = {
 
 -- ─── Options Tab Cards ───────────────────────────────────────────────────────
 Title.OPTION_CARDS = {
-    { id = "settings",    label = "GAME SETTINGS",        icon = "⚙", desc = "Configure controls, display resolution, audio levels, and gameplay mechanics.", color = {0.18, 0.45, 0.85} },
-    { id = "unlockables", label = "BLOCK STYLES & SKINS", icon = "◆", desc = "Custom matrix themes and block textures (GameBoy, Neon, NES, Monochrome, Glass).", color = {0.60, 0.25, 0.85} },
-    { id = "shaders",     label = "SHADERS",              icon = "🖥", desc = "Configure CRT distortion, Chromatic aberration, Pixel matrix, Motion blur, Signal noise, VHS, and Phosphor decay shaders.", color = {0.10, 0.70, 0.60} },
-    { id = "quit",        label = "QUIT GAME",            icon = "✕", desc = "Close TetriX and safely exit back to your operating system desktop.", color = {0.85, 0.22, 0.28} },
+    { id = "settings",    label = "GAME SETTINGS",               icon = "⚙", desc = "Configure controls, display resolution, audio levels, and gameplay mechanics.", color = {0.18, 0.45, 0.85} },
+    { id = "unlockables", label = "VISUAL & AUDIO CUSTOMIZATION", icon = "🎨", desc = "Customize visual themes, BGM music pack, ghost piece style, grid opacity & pattern with live matrix preview.", color = {0.60, 0.25, 0.85} },
+    { id = "shaders",     label = "SHADERS",                     icon = "🖥", desc = "Configure CRT distortion, Chromatic aberration, Pixel matrix, Motion blur, Signal noise, VHS, and Phosphor decay shaders.", color = {0.10, 0.70, 0.60} },
+    { id = "quit",        label = "QUIT GAME",                   icon = "✕", desc = "Close TetriX and safely exit back to your operating system desktop.", color = {0.85, 0.22, 0.28} },
 }
 
 -- ─── State ────────────────────────────────────────────────────────────────────
@@ -625,9 +624,8 @@ local function draw_play_tab(W, H, alpha, time)
     love.graphics.setColor(0.2, 0.75, 1.0, alpha)
     love.graphics.printf(target_text, act_x + 12, act_y + 9, act_w - 100, "left")
 
-    love.graphics.setFont(Fonts.get(13))
-    love.graphics.setColor(1, 1, 1, alpha)
-    love.graphics.printf("PLAY Ⓧ", act_x + act_w - 90, act_y + 9, 80, "right")
+    local InputPrompts = require("lib.input_prompts")
+    InputPrompts.draw_action_badge("ROTATE_CW", "PLAY", act_x + act_w - 85, act_y + 7, 22, Fonts.get(13))
 end
 
 -- ─── Draw PROGRESS Tab Content (Greyed Out / WIP) ─────────────────────────────
@@ -867,12 +865,22 @@ local function draw_progress_tab(W, H, alpha)
         love.graphics.printf(tostring(lt.count), lx + 6, l_sec_y + 18, l_card_w - 12, "center")
     end
 
-    -- Bottom Sub-bar: Extra Counters
+    -- Bottom Sub-bar: Best Performance Metrics & Extra Counters
+    local best_pps = stats.best_pps or 0
+    local best_kpp_str = stats.best_kpp and string.format("%.2f KPP", stats.best_kpp) or "-- KPP"
+    local best_apm = stats.best_apm or 0
+
     love.graphics.setFont(Fonts.get(10))
-    love.graphics.setColor(0.55, 0.62, 0.75, alpha * 0.85)
+    love.graphics.setColor(0.2, 0.95, 0.9, alpha * 0.95)
+    local perf_info = string.format("★ BEST METRICS:   Speed: %.2f PPS   |   Efficiency: %s   |   Attacks: %.1f APM",
+        best_pps, best_kpp_str, best_apm)
+    love.graphics.printf(perf_info, px + inner_margin + 14, bot_y + bot_h - 30, inner_w - 28, "center")
+
+    love.graphics.setFont(Fonts.get(9))
+    love.graphics.setColor(0.55, 0.62, 0.75, alpha * 0.8)
     local sub_info = string.format("Holds Used: %d   |   Hard Drops: %d   |   Total Lines Cleared: %d",
         stats.holds_used or 0, stats.hard_drops or 0, stats.total_lines or 0)
-    love.graphics.printf(sub_info, px + inner_margin + 14, bot_y + bot_h - 18, inner_w - 28, "center")
+    love.graphics.printf(sub_info, px + inner_margin + 14, bot_y + bot_h - 15, inner_w - 28, "center")
 end
 
 -- ─── Draw OPTIONS Tab Content ─────────────────────────────────────────────────
@@ -1160,10 +1168,25 @@ function Title:draw()
     love.graphics.printf("★ " .. tip, W - Title.tip_scroll, by + 10, #tip * 10 + 40, "left")
     love.graphics.setScissor()
 
-    -- Navigation Helper Footer Text
-    love.graphics.setFont(Fonts.get(12))
-    love.graphics.setColor(0.40, 0.48, 0.62, alpha * 0.85)
-    love.graphics.printf("Q / E: Switch Top Category    ← → ↑ ↓: Navigate    ENTER: Select / Play    ESC: Quit", 0, by + bottom_bar_h - 20, W, "center")
+    -- Navigation Helper Footer Prompts
+    local InputPrompts = require("lib.input_prompts")
+    local fy = by + bottom_bar_h - 22
+    local fx = math.floor((W - 640) / 2)
+
+    InputPrompts.draw_action_icon("HOLD", fx, fy, 16)
+    love.graphics.setFont(Fonts.get(11))
+    love.graphics.setColor(0.5, 0.6, 0.75, alpha)
+    love.graphics.print("Switch Category", fx + 20, fy + 1)
+
+    InputPrompts.draw_action_icon("MOVE_LEFT", fx + 150, fy, 16)
+    InputPrompts.draw_action_icon("MOVE_RIGHT", fx + 170, fy, 16)
+    love.graphics.print("Navigate", fx + 192, fy + 1)
+
+    InputPrompts.draw_action_icon("ROTATE_CW", fx + 300, fy, 16)
+    love.graphics.print("Select", fx + 322, fy + 1)
+
+    InputPrompts.draw_action_icon("PAUSE", fx + 420, fy, 16)
+    love.graphics.print("Quit", fx + 442, fy + 1)
 
     -- Quit Confirmation Modal Popup
     draw_quit_modal(W, H, alpha)

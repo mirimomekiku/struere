@@ -79,49 +79,71 @@ function BaseMode:tryUndo(state)
     return false
 end
 
-function BaseMode:onLineClear(state, lines_cleared, rows)
+function BaseMode:onLineClear(state, lines_cleared, rows, t_spin_type)
     self.lines_cleared = self.lines_cleared + lines_cleared
-    if lines_cleared > 0 then
+    local is_t_spin = (t_spin_type == "full" or t_spin_type == "mini")
+    if is_t_spin then
+        self.t_spins = self.t_spins + 1
+    end
+
+    if lines_cleared > 0 or is_t_spin then
         local Save = require("lib.save")
-        Save.record_line_clear(lines_cleared)
+        if lines_cleared > 0 then
+            Save.record_line_clear(lines_cleared)
+        end
 
-        self.combo = self.combo + 1
-        if self.combo > self.max_combo then
-            self.max_combo = self.combo end
+        if lines_cleared > 0 then
+            self.combo = self.combo + 1
+            if self.combo > self.max_combo then
+                self.max_combo = self.combo
+            end
+        end
 
-        -- Back-to-Back bonus
+        -- Back-to-Back & T-Spin Scoring
         local is_tetris = (lines_cleared == 4)
-        local btb_bonus = 0
-        if is_tetris then
+        local b2b_eligible = is_tetris or (is_t_spin and lines_cleared > 0)
+
+        local line_score = Scoring.calculate(lines_cleared, state.level, t_spin_type, self.back_to_back)
+
+        if b2b_eligible then
             if self.back_to_back then
-                btb_bonus = Scoring.BACK_TO_BACK_BONUS * state.level
                 self.back_to_back_count = self.back_to_back_count + 1
             end
             self.back_to_back = true
-        else
+        elseif lines_cleared > 0 then
             self.back_to_back = false
         end
 
         -- All-clear bonus
         local Board = require("lib.board")
+        local constants = require("lib.constants")
+        local Effects = require("lib.effects")
+        local Audio = require("lib.audio")
         local ac_bonus = 0
         if Board.is_empty(state.board) then
             self.all_clears = self.all_clears + 1
             ac_bonus = Scoring.ALL_CLEAR_BONUS * state.level
+            if Save.data and Save.data.stats then
+                Save.data.stats.all_clears = (Save.data.stats.all_clears or 0) + 1
+            end
+            Effects.all_clear_burst(constants.BOARD_X, constants.BOARD_Y, constants.CELL_SIZE)
+            Audio.play("all_clear")
         end
 
-        if not self.fixed_gravity then
-            state.lines = state.lines + lines_cleared
-            state.level = math.min(
-                math.floor(state.lines / self.lines_per_level) + 1,
-                self.max_level
-            )
-        else
-            state.lines = state.lines + lines_cleared
+        if lines_cleared > 0 then
+            if not self.fixed_gravity then
+                state.lines = state.lines + lines_cleared
+                state.level = math.min(
+                    math.floor(state.lines / self.lines_per_level) + 1,
+                    self.max_level
+                )
+            else
+                state.lines = state.lines + lines_cleared
+            end
         end
 
-        -- Add special bonuses on top of base score
-        state.score = state.score + btb_bonus + ac_bonus
+        -- Add score
+        state.score = state.score + line_score + ac_bonus
 
         if self.line_goal and self.lines_cleared >= self.line_goal then
             state.game_over = true
@@ -214,6 +236,30 @@ function BaseMode:drawHUD(state, x, y)
     self:drawStatRow("LEVEL",  state.level, x, y,      w)
     self:drawStatRow("LINES",  state.lines, x, y + 42, w)
     self:drawStatRow("TIME",   self:getTimeFormatted(), x, y + 84, w)
+
+    -- Real-time HUD Metrics Card (PPS, KPP, APM)
+    local pps = self:getPPS()
+    local inputs = state.total_inputs or 0
+    local pieces = math.max(1, self.pieces_placed)
+    local kpp = inputs / pieces
+    local time_mins = math.max(0.1, self.timer) / 60
+    local attacks = (self.garbage_sent or 0) + (self.lines_cleared or 0)
+    local apm = attacks / time_mins
+
+    local my = y + 126
+    love.graphics.setColor(0, 0, 0, 0.45)
+    love.graphics.rectangle("fill", x, my, w, 52, 6, 6)
+    love.graphics.setFont(Fonts.get(8))
+    love.graphics.setColor(0.55, 0.65, 0.75, 0.85)
+    love.graphics.printf("METRICS", x, my + 3, w, "center")
+
+    love.graphics.setFont(Fonts.get(9))
+    love.graphics.setColor(0.2, 0.9, 0.9)
+    love.graphics.printf(string.format("PPS: %.2f", pps), x + 8, my + 16, w - 16, "left")
+    love.graphics.setColor(0.9, 0.8, 0.2)
+    love.graphics.printf(string.format("KPP: %.2f", kpp), x + 8, my + 28, w - 16, "left")
+    love.graphics.setColor(1.0, 0.4, 0.6)
+    love.graphics.printf(string.format("APM: %.1f", apm), x + 8, my + 38, w - 16, "left")
 end
 
 return BaseMode
