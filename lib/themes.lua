@@ -127,11 +127,81 @@ Themes.list = {
             S = {255, 150, 0}, Z = {200, 30, 0}, J = {255, 80, 30}, L = {255, 220, 50},
         },
     },
+    synthwave = {
+        name = "Synthwave '80s",
+        background = {0.06, 0.02, 0.12},
+        grid_color = {0.15, 0.04, 0.22},
+        grid_border = {0.90, 0.10, 0.60},
+        accent = {0.95, 0.15, 0.70},
+        ghost_alpha = 0.30,
+        block_style = "neon",
+        highlight = {1.0, 0.2, 0.8, 0.20},
+        colors = {
+            I = {0, 245, 255}, O = {255, 225, 0}, T = {255, 0, 210},
+            S = {0, 255, 140}, Z = {255, 40, 90}, J = {50, 110, 255}, L = {255, 150, 0},
+        },
+    },
+    emerald = {
+        name = "Emerald Forest",
+        background = {0.02, 0.07, 0.04},
+        grid_color = {0.05, 0.14, 0.08},
+        grid_border = {0.15, 0.55, 0.30},
+        accent = {0.20, 0.85, 0.45},
+        ghost_alpha = 0.22,
+        block_style = "glass",
+        highlight = {0.30, 0.95, 0.55, 0.15},
+        colors = {
+            I = {0, 240, 180}, O = {220, 240, 60}, T = {150, 90, 240},
+            S = {40, 220, 90}, Z = {240, 70, 70}, J = {40, 140, 220}, L = {240, 170, 40},
+        },
+    },
+    aurora = {
+        name = "Aurora Borealis",
+        background = {0.02, 0.04, 0.10},
+        grid_color = {0.05, 0.09, 0.18},
+        grid_border = {0.15, 0.70, 0.80},
+        accent = {0.20, 0.90, 0.75},
+        ghost_alpha = 0.25,
+        block_style = "neon",
+        highlight = {0.2, 0.9, 0.8, 0.18},
+        colors = {
+            I = {0, 255, 230}, O = {240, 240, 100}, T = {180, 100, 255},
+            S = {60, 255, 150}, Z = {255, 80, 140}, J = {80, 160, 255}, L = {255, 190, 80},
+        },
+    },
+    amethyst = {
+        name = "Amethyst Crystal",
+        background = {0.07, 0.02, 0.12},
+        grid_color = {0.14, 0.05, 0.22},
+        grid_border = {0.55, 0.15, 0.75},
+        accent = {0.80, 0.30, 0.95},
+        ghost_alpha = 0.22,
+        block_style = "glass",
+        highlight = {0.85, 0.4, 1.0, 0.15},
+        colors = {
+            I = {160, 200, 255}, O = {255, 210, 120}, T = {210, 80, 255},
+            S = {120, 230, 160}, Z = {255, 90, 150}, J = {100, 110, 255}, L = {255, 160, 90},
+        },
+    },
+    gameboy = {
+        name = "Game Boy DMG",
+        background = {0.55, 0.65, 0.12},
+        grid_color = {0.45, 0.53, 0.08},
+        grid_border = {0.18, 0.26, 0.04},
+        accent = {0.15, 0.24, 0.03},
+        ghost_alpha = 0.20,
+        block_style = "flat",
+        highlight = {0, 0, 0, 0.10},
+        colors = {
+            I = {15, 56, 15}, O = {48, 98, 48}, T = {15, 56, 15},
+            S = {48, 98, 48}, Z = {15, 56, 15}, J = {48, 98, 48}, L = {15, 56, 15},
+        },
+    },
 }
 
 Themes.current = Themes.list.retro
 Themes.current_name = "retro"
-Themes.order = {"retro", "flat", "glass", "cyberpunk", "ocean", "sunset", "pastel", "monochrome", "lava"}
+Themes.order = {"retro", "flat", "glass", "cyberpunk", "ocean", "sunset", "pastel", "monochrome", "lava", "synthwave", "emerald", "aurora", "amethyst", "gameboy"}
 
 function Themes.set(name)
     if Themes.list[name] then

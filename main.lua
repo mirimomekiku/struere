@@ -6,7 +6,6 @@ local Audio = require("lib.audio")
 local Save = require("lib.save")
 local constants = require("lib.constants")
 local ShaderManager = require("lib.shaders.manager")
-local BlockStyles = require("lib.block_styles")
 
 function love.load()
     love.window.setMode(constants.WINDOW_WIDTH, constants.WINDOW_HEIGHT, {resizable = false})
@@ -17,7 +16,6 @@ function love.load()
     Input.load()
     Effects.init()
     ShaderManager.init()
-    BlockStyles.load()
 
     Save.apply_all_settings()
 
@@ -66,4 +64,33 @@ end
 
 function love.keyreleased(key)
     StateMgr.keyreleased(key)
+end
+
+function love.gamepadadded(joystick)
+    Input.gamepadadded(joystick)
+end
+
+function love.gamepadremoved(joystick)
+    Input.gamepadremoved(joystick)
+end
+
+function love.gamepadpressed(joystick, button)
+    local action = Input.gamepadpressed(joystick, button)
+    if button == "a" or button == "start" then
+        StateMgr.keypressed("return")
+    elseif button == "b" then
+        StateMgr.keypressed("escape")
+    elseif button == "dpleft" then
+        StateMgr.keypressed("left")
+    elseif button == "dpright" then
+        StateMgr.keypressed("right")
+    elseif button == "dpup" then
+        StateMgr.keypressed("up")
+    elseif button == "dpdown" then
+        StateMgr.keypressed("down")
+    end
+end
+
+function love.gamepadreleased(joystick, button)
+    Input.gamepadreleased(joystick, button)
 end
